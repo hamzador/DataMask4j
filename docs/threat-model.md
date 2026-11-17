@@ -55,5 +55,9 @@ The real PostgreSQL integration suite checks SELECT-only and write-capable roles
 - External MaskingKeyProvider supplies a fresh transferred key array; the starter validates length and clears it after defensive copying. Missing required, invalid and ambiguous providers fail startup. No key configuration property, fallback hardcoded key or key-generation service. Provider invocation errors are sanitized; Spring/application initialization and logging remain outside the masking boundary.
 - Explicit key-optional mode permits unkeyed masks without a provider; keyed record policies still fail when invoked. JVM copies may remain. No rotation, secret-store client, actuator or native-image support; no automatic database export.
 
+## Spring Batch processor boundary
+- Explicit map and annotated record processors only; no automatic source fallback, null item filtering, reader/writer, job or transaction configuration. Generic failures omit custom causes. A fully dropped map emits an empty map.
+- Job metadata, listeners, readers and writers may retain or expose raw input independently. Applications must use isolated transactional destinations, safe metadata, reviewed policies and appropriate retry/skip handling. Stable keys and policies are required for deterministic reprocessing. Do not mask previous output again as raw input. Initial tests validate processor behavior, not full job restart/rollback.
+
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.

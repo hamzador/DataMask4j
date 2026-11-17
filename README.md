@@ -2,14 +2,14 @@
 
 **Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
 
-DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. European locale-aware synthetic names and test-domain email substitution are implemented; annotation-driven masking of public flat Java records is in development. An opt-in Spring Boot starter is in development; Spring Batch, automatic relational planning and XML are planned.
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. European locale-aware synthetic names and test-domain email substitution are implemented; annotation-driven masking of public flat Java records is in development. An opt-in Spring Boot starter is implemented; Spring Batch 6 item processors are in development. Automatic relational planning and XML are planned.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 [![Java 21+](https://img.shields.io/badge/Java-21%2B-blue)](https://openjdk.org/projects/jdk/21/)
 [![Build and test](https://github.com/hamzador/DataMask4j/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzador/DataMask4j/actions/workflows/ci.yml)
 
-> Early development (0.1.0-SNAPSHOT). Nothing has been published to Maven Central. The current snapshot includes local masking, restricted PostgreSQL export, locale-aware fixtures, annotations and an opt-in Spring Boot starter. It is not production-certified. Spring Batch, XML and automated anonymization are not available.
+> Early development (0.1.0-SNAPSHOT). Nothing has been published to Maven Central. The current snapshot includes local masking, restricted PostgreSQL export, locale-aware fixtures, annotations and an opt-in Spring Boot starter. It is not production-certified. Spring Batch processors are experimental; XML and automated anonymization are not available.
 
 ## Why DataMask4j?
 
@@ -181,8 +181,8 @@ JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT
 | PostgreSQL JDBC read-only dry run | Unit and real PostgreSQL CI passed (50 reactor tests) |
 | Single-table transactional PostgreSQL export | Initial CI passed (57 tests total) |
 | Ordered multi-table export with restricted target foreign keys | Initial CI passed (63 tests total) |
-| Spring Boot opt-in RecordMasker starter | Implemented in snapshot; CI pending |
-| Spring Batch integration | Planned |
+| Spring Boot opt-in RecordMasker starter | CI passed (91 reactor tests) |
+| Spring Batch 6 explicit item processors | Implemented in snapshot; CI pending |
 | European synthetic names and test-domain email (Java API) | Initial CI passed (71 tests total) |
 | Expanded faker formats and key rotation | Planned |
 
@@ -711,6 +711,62 @@ flowchart TD
 
 For unkeyed REDACT, KEEP, CONSTANT and NULLIFY operations only, use `enabled: true` and `key-required: false`, with no provider bean. If a provider exists, its key is still validated and used. Missing required, invalid or ambiguous providers fail bean creation; provider invocation errors are sanitized without retaining their cause. Provider bean initialization outside this method is trusted application code. Spring can log its own configuration errors; do not put keys in configuration properties, exception text or logs. No key rotation, secret-manager client, automatic lifecycle erasure, actuator endpoint or database integration is supplied.
 
+## Spring Batch data masking: explicit ItemProcessor adapters
+
+The optional `datamask4j-spring-batch` module targets Spring Batch 6.0.6 (Java 21, aligned with the Spring Boot 4.0.9 baseline). It provides two stateless processors for explicit use in chunk-oriented steps, without starting jobs or configuring repositories, readers, writers or transactions.
+
+```xml
+<dependency>
+    <groupId>io.github.hador</groupId>
+    <artifactId>datamask4j-spring-batch</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+</dependency>
+```
+
+```java
+import io.github.hador.datamask4j.batch.RecordMaskingItemProcessor;
+import io.github.hador.datamask4j.annotations.RecordMasker;
+import org.springframework.batch.core.repository.JobRepository;
+import org.springframework.batch.core.step.Step;
+import org.springframework.batch.core.step.builder.StepBuilder;
+import org.springframework.batch.infrastructure.item.ItemReader;
+import org.springframework.batch.infrastructure.item.ItemWriter;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.context.annotation.Bean;
+
+// Customer is the fully annotated public record from the preceding example.
+// Supply a trusted reader, isolated transactional writer and transaction manager.
+@Bean
+Step maskCustomers(JobRepository repository,
+                   PlatformTransactionManager transactionManager,
+                   ItemReader<Customer> reader,
+                   ItemWriter<Customer> writer,
+                   RecordMasker masker) {
+    return new StepBuilder("maskCustomers", repository)
+        .<Customer, Customer>chunk(100)
+        .transactionManager(transactionManager)
+        .reader(reader)
+        .processor(new RecordMaskingItemProcessor<Customer>(masker))
+        .writer(writer)
+        .build();
+}
+```
+
+For string maps, instantiate `new MapMaskingItemProcessor(new DataMasker(policy))` and configure a Map<String,String> reader and writer. Both processors throw a generic BatchMaskingException on transformation failure; they never return the original input as fallback or use null to filter an item. Dropping all map fields emits an empty map, not a skipped item.
+
+```mermaid
+flowchart LR
+    R[Trusted reader] --> P[Explicit masking processor]
+    P --> V{Complete policy valid?}
+    V -->|Yes| M[New masked item]
+    M --> W[Isolated transactional writer]
+    V -->|No| F[Generic masking failure]
+    W --> C[Batch-managed chunk commit]
+    F --> B[Batch failure or rollback per configuration]
+```
+
+Only the application owns transaction boundaries. No skip, retry or restart policy is registered by the module. A failed chunk must not be allowed to bypass masking; do not configure a fallback writer for original items. For deterministic reprocessing use the same reviewed policy, key and scope across retries and restarts; never reprocess already masked items as raw source. Custom strategies, record constructors and accessors must be pure and thread-safe when used concurrently. Readers, listeners, execution contexts, job parameters, writers and tracing are outside the masking boundary and must not retain or log raw data. A transactional writer and appropriate job repository are required for actual rollback and restart guarantees. The initial tests cover processors and deterministic reprocessing; full job restart and database rollback integration remain to be validated.
+
 ## Architecture
 
 ```text
@@ -720,6 +776,7 @@ DataMask4j
 ├── datamask4j-faker      # deterministic European fixture substitutions
 ├── datamask4j-annotations # immutable-copy masking for public Java records
 ├── datamask4j-spring-boot-starter # opt-in RecordMasker auto-configuration
+├── datamask4j-spring-batch # explicit map and record item processors
 ├── datamask4j-file       # CSV, JSON and YAML policies
 ├── datamask4j-jdbc       # PostgreSQL read-only preview
 ├── docs/                # threat model and roadmap
@@ -805,7 +862,7 @@ It provides masking and pseudonymisation primitives. It does not certify GDPR co
 
 ### Does it support Spring Boot, Spring Batch, PostgreSQL or database masking?
 
-Partially. The snapshot has a standalone Java engine, CSV/JSON adapters with YAML policies and an opt-in Spring Boot starter in development. PostgreSQL read-only preview has passed real integration tests; single-table export has passed integration CI; ordered multi-table export is experimental. Automatic relational planning and Spring Batch integration remain roadmap items; Spring Boot compatibility beyond the initial baseline is unverified. The core has no framework dependency.
+Partially. The snapshot has a standalone Java engine, CSV/JSON adapters with YAML policies and an opt-in Spring Boot starter in development. PostgreSQL read-only preview has passed real integration tests; single-table export has passed integration CI; ordered multi-table export is experimental. Spring Batch 6 explicit processors are experimental; automatic relational planning and full job restart testing remain roadmap items. Spring Boot compatibility beyond the initial baseline is unverified. The core has no framework dependency.
 
 ### Is DataMask4j available on Maven Central?
 
