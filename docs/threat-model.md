@@ -1,7 +1,7 @@
 # Threat model — initial core
 
 ## Scope and trust boundaries
-A trusted Java application supplies string records, immutable field policies and, where required, a random secret key. The core performs no network calls, autonomous discovery, persistence or logging. Untrusted plugins, database credentials, SQL generation, streaming and access control are not implemented.
+A trusted Java application supplies string records, immutable field policies and, where required, a random secret key. The core performs no network calls, autonomous discovery, persistence or logging. Untrusted plugins, database credentials, SQL generation and access control are not implemented. Optional file adapters parse bounded CSV/JSON and restricted YAML policy ASTs.
 
 ## Security properties and limitations
 | Threat | Initial mitigation | Residual risk |
@@ -16,6 +16,14 @@ A trusted Java application supplies string records, immutable field policies and
 | Resource exhaustion | No external runtime dependencies | In-memory maps and strings are not bounded; callers limit sizes, concurrency and access |
 
 Use distinct random keys per purpose/environment, retain keys separately, restrict tokenisation access, and classify all attributes including indirect identifiers. Nulls and equality may leak information. Tokens are pseudonyms, not proof of anonymity. No claim of collision-free output or relational constraints. Do not truncate tokens without risk analysis. Use synthetic data in tests.
+
+## File and policy adapters
+
+- Malformed input, duplicate headers/keys, unknown fields, non-string JSON, YAML anchors/aliases/merges/tags and excess limits fail with generic exceptions. The engine does not instantiate arbitrary YAML objects.
+- CSV rejects common spreadsheet formula prefixes in emitted fields and headers; not a universal spreadsheet security guarantee.
+- Streaming output can contain partial masked records after a failure; callers must discard the entire output and use isolated staging. Caller-supplied streams can access external systems; core does not control destinations.
+- Input/output size limits count UTF-16 code units; parser allocations and caller-supplied transformation memory are not fully bounded. Policy AST parsing has independent limits.
+- The optional file module introduces external parser dependencies. Review transitive dependencies, advisories and parser misuse cases before release.
 
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.

@@ -13,6 +13,16 @@ public final class DataMasker {
         this.policy = Objects.requireNonNull(policy, "policy");
     }
 
+    /** Validates the complete input schema and returns retained fields in caller order. */
+    public java.util.List<String> outputFields(java.util.List<String> fields) {
+        var snapshot = java.util.List.copyOf(fields);
+        var unique = new java.util.HashSet<>(snapshot);
+        if (unique.size() != snapshot.size() || !unique.equals(policy.rules().keySet())) {
+            throw new MaskingException("Input fields do not match masking policy");
+        }
+        return snapshot.stream().filter(field -> !policy.rules().get(field).isDrop()).toList();
+    }
+
     public Map<String, String> mask(Map<String, String> input) {
         var snapshot = new LinkedHashMap<>(Objects.requireNonNull(input, "input"));
         if (!snapshot.keySet().equals(policy.rules().keySet())) {

@@ -2,14 +2,14 @@
 
 **Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
 
-DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. Future Spring Boot, Spring Batch, JDBC and CSV/JSON adapters are planned, not yet implemented.
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. Spring Boot, Spring Batch, JDBC and XML are planned.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 [![Java 21+](https://img.shields.io/badge/Java-21%2B-blue)](https://openjdk.org/projects/jdk/21/)
 [![Build and test](https://github.com/hamzador/DataMask4j/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzador/DataMask4j/actions/workflows/ci.yml)
 
-> Early development (0.1.0-SNAPSHOT). The first milestone is a small, deterministic, in-process masking engine. Nothing has been published to Maven Central. Database, file, Spring and automated anonymization capabilities described in the roadmap are not available yet.
+> Early development (0.1.0-SNAPSHOT). The first milestone is a small, deterministic, in-process masking engine. Nothing has been published to Maven Central. Database, Spring, XML and automated anonymization capabilities are not available yet.
 
 ## Why DataMask4j?
 
@@ -53,9 +53,10 @@ References: [GDPR official text](https://eur-lex.europa.eu/eli/reg/2016/679/oj),
 | Keep, drop, constant replacement, redaction | Initial milestone |
 | HMAC-SHA-256 pseudonymisation, domain separation | Initial milestone |
 | Immutable output, null preservation | Initial milestone |
-| CSV/JSON/XML adapters | Planned |
+| CSV and flat JSON adapters | Implemented (snapshot; CI validation pending) |
+| XML adapter | Planned |
 | Java bean/record annotations | Planned |
-| YAML policy loading | Planned |
+| Restricted YAML policy loading | Implemented (snapshot; CI validation pending) |
 | JDBC export and relational consistency | Planned |
 | Spring Boot / Spring Batch integrations | Planned |
 | Dry-run, safe reports, key rotation and faker adapters | Planned |
@@ -212,12 +213,77 @@ var policy = MaskingPolicy.builder()
 
 Custom strategies must be trusted, deterministic if required, thread-safe for concurrent use, and must never log raw inputs. The engine rejects null transformation results for non-null inputs and wraps ordinary strategy failures without exposing causes or values. It cannot prevent custom code from logging, accessing external services or retaining secrets. Generalisation alone does not establish anonymity.
 
+## Mask CSV, JSON and YAML-defined policies (development snapshot)
+
+The optional `datamask4j-file` module adds streaming CSV and JSON transformations using the same strict engine. CSV is comma-separated with a required header. JSON accepts one array of flat objects with string or null values. Numbers, booleans, arrays and nested objects are rejected rather than coerced. YAML is a restricted **policy** format, not a YAML dataset masker.
+
+```xml
+<dependency>
+    <groupId>io.github.hador</groupId>
+    <artifactId>datamask4j-file</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+</dependency>
+```
+
+Create `masking.yml` (synthetic example):
+
+```yaml
+fields:
+  id:
+    strategy: hmac
+    scope: customer-id:v1
+  email:
+    strategy: constant
+    value: 'masked@example.test'
+  notes:
+    strategy: drop
+```
+
+Only keep, drop, redact, constant (value required) and hmac (scope required, external key) are accepted. All other options are rejected. Quote YAML strings that could otherwise be parsed as booleans, dates or numbers. Duplicate keys, anchors, aliases, merges, custom tags and multi-document policies are rejected. Do not store credentials or keys in YAML.
+
+```java
+import io.github.hador.datamask4j.core.DataMasker;
+import io.github.hador.datamask4j.file.*;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Base64;
+import java.util.Objects;
+
+byte[] key = Base64.getDecoder().decode(
+    Objects.requireNonNull(System.getenv("DATAMASK_KEY_BASE64")));
+try (var policySource = Files.newBufferedReader(Path.of("masking.yml"))) {
+    var masker = new DataMasker(new YamlPolicyLoader().load(policySource, key));
+    var csv = new StringWriter();
+    long count = new CsvMasker(masker).mask(
+        new StringReader("id,email,notes\nC-1,private@example.test,unneeded\n"), csv);
+    // Output header is id,email; count is 1. ID becomes a scoped token.
+    var json = new StringWriter();
+    new JsonMasker(masker).mask(new StringReader("""
+        [{"id":"C-1","email":"private@example.test","notes":"unneeded"}]
+        """), json);
+    // JSON output contains the same pseudonym, masked email, and no notes.
+} finally {
+    java.util.Arrays.fill(key, (byte) 0);
+}
+```
+
+### File safety and limits
+
+Defaults: 8,388,608 UTF-16 code units each for input and output; 100,000 records; 128 fields; 65,536 code units per field name/value. Adjust with `new FileMaskingLimits(inputChars, outputChars, records, fields, valueChars)` when appropriate. Parser allocation may occur before per-field checks; these limits are not a JVM memory sandbox. YAML has independent fixed caps: 262,144 input code units, 128 fields, nesting depth 8, 65,536 code units per scalar.
+
+CSV validates the full header even for empty datasets, prohibits duplicate columns and mismatched row widths, rejects exports that drop every column, and rejects common spreadsheet formula prefixes in retained header/cells (including legitimate negative numbers). This is a conservative protection, not universal spreadsheet safety; use a non-executable format or import as text if necessary. CSV input uses strings (empty string is not null), and cannot preserve a distinction between null and empty output. JSON preserves nulls and rejects duplicate keys and trailing documents. Both adapters leave caller streams open and return a count only on success. Supply distinct input/output streams.
+
+**Streaming is not transactional.** On any exception, discard the entire output, even if some records were already written. For files, use a new restricted-permission staging destination and publish only after successful masking and verification. Never write over the source or use a production destination. No atomic file move or database protection is implemented yet.
+
 ## Architecture
 
 ```text
 DataMask4j
 ├── datamask4j-core       # policy, field rules, masking engine
 ├── datamask4j-crypto     # scoped HMAC pseudonymisation
+├── datamask4j-file       # CSV, JSON and YAML policies
 ├── docs/                # threat model and roadmap
 └── .github/workflows/   # build and tests
 ```
@@ -226,14 +292,14 @@ Core does not depend on crypto, Spring or database drivers. Optional modules wil
 
 ## Security and operating limits
 
-The first implementation is an in-process trusted API, not a sandbox. It handles string maps only and does not discover personal data automatically. Inputs must already be authorised for processing. Do not use unreviewed policies on production exports.
+The engine is an in-process trusted API, not a sandbox. It handles string maps and optional bounded CSV/flat JSON adapters; it does not discover personal data automatically. Inputs must already be authorised for processing. Do not use unreviewed policies on production exports.
 
 - Run in an isolated environment with least privilege. Never give test systems access to production databases or keys.
 - Avoid logging input/output records, exposing them in error reports, or including them in CI artifacts. Use synthetic test fixtures.
 - Treat retained values, stable pseudonyms and sensitive combinations of attributes as potentially personal data.
 - The engine throws before returning on invalid schema or failed transformation. This is not a transactional rollback of custom strategy side effects.
 - Review allowed output fields and downstream destinations. Masking can break application validation, column lengths or uniqueness.
-- File/database exports, tenant isolation, key lifecycle and reidentification tests are separate milestones.
+- Atomic file publication, database exports, tenant isolation, key lifecycle and reidentification tests are separate milestones.
 
 See [threat model](docs/threat-model.md) and [security policy](SECURITY.md).
 
@@ -276,7 +342,7 @@ It provides masking and pseudonymisation primitives. It does not certify GDPR co
 
 ### Does it support Spring Boot, Spring Batch, PostgreSQL or database masking?
 
-Not yet. The initial milestone is a standalone Java engine. JDBC, Spring Boot and Spring Batch integration are roadmap items. The core has no framework dependency.
+Not yet. The snapshot has a standalone Java engine and CSV/JSON adapters with YAML policies. JDBC, Spring Boot and Spring Batch integration are roadmap items. The core has no framework dependency.
 
 ### Is DataMask4j available on Maven Central?
 

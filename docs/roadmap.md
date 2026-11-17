@@ -1,13 +1,13 @@
 # Roadmap
 
-## M1 — Core, in progress
+## M1 — Core, initial CI passed
 - Strict immutable string-map policy, explicit transformations, scoped HMAC with versioned tokens.
 - Known-answer test, concurrency and negative tests; require successful CI before sign-off.
 - Improve API documentation and coverage; add reviewed resource limits and structured error taxonomy where useful.
 
-## M2 — Structured data
-- Streaming CSV/JSON; explicit schema classification; safe YAML policy parser, no unsafe object deserialisation.
-- Test malformed input, limits, encoding, duplicate keys, parser vulnerabilities and partial-output handling.
+## M2 — Structured data, implementation in progress
+- Implemented in snapshot: bounded streaming CSV/flat JSON, exact schema, restricted YAML policy AST. CI sign-off pending.
+- Added malformed input, limits, duplicate keys, policy rejection and formula prefix tests. Remaining: atomic file publication, parser advisory scanning, more encoding and fuzz tests, XML.
 
 ## M3 — JDBC
 - Separate source and target connections, source read-only credentials, no updates to source.
