@@ -46,5 +46,9 @@ The real PostgreSQL integration suite checks SELECT-only and write-capable roles
 - Names use a small fixed vocabulary and may coincide with real people; collisions and distribution leakage are expected. A common seed is required for consistent first/last/full name. Email uses a full keyed digest and reserved test-domain suffix, but outbound messaging must still be blocked.
 - No new external runtime dependencies. Scope separation uses reserved faker:v1 prefixes, locale and purpose. Key reuse, tokenisation oracles and remaining indirect identifiers are residual risks. These substitutions do not establish anonymity. No routable phone numbers or real-world identity/financial identifiers are generated.
 
+## Annotation-driven record masking
+- Public flat records only; all components explicitly classified before reading any values, with scalar KEEP and String-only transformations. No accessibility override or implicit nested traversal. NULLIFY retains the field shape; it does not remove the field.
+- Record accessors and canonical constructors are trusted and may perform side effects or rewrite masked values; use simple reviewed DTOs. Generic failures omit causes; the API cannot undo user code side effects. Keys are defensively copied but JVM memory erasure is not guaranteed. Annotation literals are visible in compiled classes and must not contain secrets.
+
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.

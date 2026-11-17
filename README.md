@@ -2,7 +2,7 @@
 
 **Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
 
-DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. European locale-aware synthetic names and test-domain email substitution are in development. Spring Boot, Spring Batch, automatic relational planning and XML are planned.
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. European locale-aware synthetic names and test-domain email substitution are implemented; annotation-driven masking of public flat Java records is in development. Spring Boot, Spring Batch, automatic relational planning and XML are planned.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -175,13 +175,14 @@ JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT
 | Immutable output, null preservation | Initial milestone |
 | CSV and flat JSON adapters | Implemented (snapshot; initial CI passed) |
 | XML adapter | Planned |
-| Java bean/record annotations | Planned |
+| Explicit public flat Java record annotations | Implemented in snapshot; CI pending |
+| Nested records / Java beans | Planned |
 | Restricted YAML policy loading | Implemented (snapshot; initial CI passed) |
 | PostgreSQL JDBC read-only dry run | Unit and real PostgreSQL CI passed (50 reactor tests) |
 | Single-table transactional PostgreSQL export | Initial CI passed (57 tests total) |
 | Ordered multi-table export with restricted target foreign keys | Initial CI passed (63 tests total) |
 | Spring Boot / Spring Batch integrations | Planned |
-| European synthetic names and test-domain email (Java API) | Implemented in snapshot; CI pending |
+| European synthetic names and test-domain email (Java API) | Initial CI passed (71 tests total) |
 | Expanded faker formats and key rotation | Planned |
 
 Detailed roadmap below. Only use features that exist in the current source tree.
@@ -568,6 +569,70 @@ flowchart LR
 
 These are pseudonymising substitutions, not independently generated anonymous datasets. Equality/frequency and auxiliary attributes can still leak information. No valid phone numbers, deliverable addresses, national identifiers or bank details are generated in this milestone, avoiding accidental use of real contact or financial details. YAML integration of these strategies is not yet supported; use the Java API. Richer vocabularies, realistic locale formats and separately reviewed fixture providers are future work.
 
+## Annotation-driven Java record masking
+
+The optional `datamask4j-annotations` module provides explicit, immutable-copy masking for public flat Java records. Every record component must carry a `@Mask` annotation, even intentionally retained IDs. The library validates the complete record shape before invoking any accessor; it never implicitly retains an unclassified component.
+
+```xml
+<dependency>
+    <groupId>io.github.hador</groupId>
+    <artifactId>datamask4j-annotations</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+</dependency>
+```
+
+```java
+import io.github.hador.datamask4j.annotations.*;
+import io.github.hador.datamask4j.faker.EuropeanLocale;
+import static io.github.hador.datamask4j.annotations.MaskType.*;
+
+public record Customer(
+    @Mask(strategy = KEEP) long internalId,
+    @Mask(strategy = HMAC, scope = "customer-id:v1") String customerId,
+    @Mask(strategy = FAKE_NAME, scope = "customer-name:v1",
+          locale = EuropeanLocale.FR_FR) String fullName,
+    @Mask(strategy = FAKE_EMAIL, scope = "customer-email:v1") String email,
+    @Mask(strategy = REDACT) String notes,
+    @Mask(strategy = NULLIFY) String phone
+) {}
+```
+
+```java
+// Load a random key of at least 32 bytes from an approved secret manager.
+var masker = new RecordMasker(secretKey);
+var original = new Customer(42L, "C-42", "Example Name",
+    "private@example.test", "private notes", "not needed");
+
+Customer masked = masker.mask(original);
+// original remains unchanged; masked is a new Customer instance.
+```
+
+| Strategy | Effect |
+| --- | --- |
+| KEEP | Explicitly retain a String or primitive/boxed scalar |
+| REDACT | Replace a non-null String with [REDACTED] |
+| CONSTANT | Replace a non-null String with the configured value |
+| NULLIFY | Replace a String with null |
+| HMAC | Full scoped HMAC token; external key and scope required |
+| FAKE_FIRST_NAME / FAKE_LAST_NAME / FAKE_NAME | Select a locale-aware synthetic name from the keyed input |
+| FAKE_EMAIL | Generate a deterministic email in example.test |
+
+```mermaid
+flowchart TD
+    A[Public flat record] --> B[Inspect every component annotation]
+    B --> C{All types and options valid?}
+    C -->|No| X[Generic failure before accessors]
+    C -->|Yes| D[Read components]
+    D --> E[Apply declared masking strategies]
+    E --> F[Call public canonical constructor]
+    F --> G[New record of same type]
+    F -->|Failure| X
+```
+
+A record has a fixed shape, so DROP is deliberately unavailable: use NULLIFY for a nullable String or construct a separate data-transfer type if a field must be absent. Null input components remain null, even under CONSTANT. Non-String types are only supported for explicitly retained immutable scalar values; nested records, collections, arrays, POJOs, private records and automatic traversal are not supported. Up to 128 components are allowed. No accessibility override, runtime code generation or external framework is used.
+
+For unkeyed policies use `new RecordMasker()`. Keyed strategies require an externally supplied key and explicit nonblank scope; the faker scope prefix is reserved. Keep keys and sensitive values out of annotation literals. The default faker locale is fr-FR; nondefault locales are only allowed with faker strategies. Name components generated from separate inputs are not automatically coherent. Record accessors and canonical constructors are trusted application code: they must not log, mutate, perform I/O or undo transformations. Constructors may reject nulls or transformed values; failures are sanitized, and no result is returned. This API cannot undo application-side effects or guarantee anonymity.
+
 ## Architecture
 
 ```text
@@ -575,6 +640,7 @@ DataMask4j
 ├── datamask4j-core       # policy, field rules, masking engine
 ├── datamask4j-crypto     # scoped HMAC pseudonymisation
 ├── datamask4j-faker      # deterministic European fixture substitutions
+├── datamask4j-annotations # immutable-copy masking for public Java records
 ├── datamask4j-file       # CSV, JSON and YAML policies
 ├── datamask4j-jdbc       # PostgreSQL read-only preview
 ├── docs/                # threat model and roadmap
