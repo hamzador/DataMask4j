@@ -2,7 +2,7 @@
 
 **Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
 
-DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental single-table transactional export are available in the development snapshot. Spring Boot, Spring Batch, multi-table export and XML are planned.
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. Spring Boot, Spring Batch, automatic relational planning and XML are planned.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -151,7 +151,7 @@ flowchart LR
     M -. Restricted transactional export .-> T[Separate non-production database]
 ```
 
-JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT-only transactions into an empty test table. Multi-table relational consistency remains a later milestone.
+JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT-only transactions into an empty test table. Restricted ordered multi-table export is experimental; automatic planning remains a later milestone.
 
 ## Design principles
 
@@ -178,8 +178,8 @@ JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT
 | Java bean/record annotations | Planned |
 | Restricted YAML policy loading | Implemented (snapshot; initial CI passed) |
 | PostgreSQL JDBC read-only dry run | Unit and real PostgreSQL CI passed (50 reactor tests) |
-| Single-table transactional PostgreSQL export | Experimental implementation; CI pending |
-| Multi-table relational consistency | Planned |
+| Single-table transactional PostgreSQL export | Initial CI passed (57 tests total) |
+| Ordered multi-table export with restricted target foreign keys | Experimental implementation; CI pending |
 | Spring Boot / Spring Batch integrations | Planned |
 | Dry-run, safe reports, key rotation and faker adapters | Planned |
 
@@ -401,7 +401,7 @@ CSV validates the full header even for empty datasets, prohibits duplicate colum
 
 ## Transactional PostgreSQL test-data export (experimental snapshot)
 
-The JDBC exporter supports one ordinary table at a time. It never creates, updates, deletes, truncates or overwrites tables. A SELECT-only source and a distinct, empty target table must be provisioned by the operator. Target database names must start with `dm_test_`; this naming convention is a guard, **not proof that the database is safe or non-production**. The actual database name and expected non-privileged writer role are verified. Use a separate isolated cluster/network in real deployments.
+The JDBC exporter supports single-table export and ordered multi-table plans. It never creates, updates, deletes, truncates or overwrites tables. A SELECT-only source and a distinct, empty target table must be provisioned by the operator. Target database names must start with `dm_test_`; this naming convention is a guard, **not proof that the database is safe or non-production**. The actual database name and expected non-privileged writer role are verified. Use a separate isolated cluster/network in real deployments.
 
 ```java
 var policy = MaskingPolicy.builder()
@@ -429,7 +429,7 @@ GRANT USAGE ON SCHEMA public TO dm_mask_writer;
 GRANT SELECT, INSERT ON public.customer_masked TO dm_mask_writer;
 ```
 
-The writer role must already exist, must not own the table, and must not have UPDATE, DELETE, TRUNCATE, TRIGGER or REFERENCES on it. The source role remains SELECT-only. The destination must have exactly the retained text/varchar columns, with no generated fields, defaults, triggers, rules, inheritance, RLS, expression/partial indexes or unsupported constraints. PK, UNIQUE and NOT NULL constraints are enforced by PostgreSQL. Foreign keys, multi-table atomicity and relational planning are not supported yet.
+The writer role must already exist, must not own the table, and must not have UPDATE, DELETE, TRUNCATE, TRIGGER or REFERENCES on it. The source role remains SELECT-only. The destination must have exactly the retained text/varchar columns, with no generated fields, defaults, triggers, rules, inheritance, RLS, expression/partial indexes or unsupported constraints. PK, UNIQUE and NOT NULL constraints are enforced by PostgreSQL. Single-table export rejects foreign keys outside its plan. The ordered multi-table API supports a restricted subset of foreign keys. Automatic relational planning is not supported.
 
 ```mermaid
 sequenceDiagram
@@ -456,6 +456,59 @@ sequenceDiagram
 
 The target transaction uses SERIALIZABLE isolation, and no automatic retry is performed. A connection failure around commit can leave the outcome unknown: inspect the target before retrying. This initial API assumes trusted database administration, stable schemas and no concurrent privileged DDL or external writes; it does not sandbox custom strategies, database extensions or administrative functions. Use isolated disposable targets, a reviewed policy, least privilege, and do not send output to a test system that is allowed to access production or its keys. No raw values are included in library-generated errors or reports.
 
+## Relational database masking: ordered multi-table export (experimental)
+
+Use `JdbcExporter.exportAll` to export up to 32 explicitly listed tables in a single target transaction. Each step has its own complete field policy. All source tables must use the same source database; all targets must share the same dedicated test database and expected writer role. A repeatable-read source transaction provides a consistent snapshot; the row limit applies to the entire plan. Reports follow plan order and are returned only after target commit.
+
+```java
+var sharedIdentity = new HmacPseudonymizer(secretKey, "customer-id:v1");
+var customers = new DataMasker(MaskingPolicy.builder()
+    .field("id", FieldRule.transform(sharedIdentity))
+    .field("name", FieldRule.redact())
+    .build());
+var orders = new DataMasker(MaskingPolicy.builder()
+    .field("id", FieldRule.keep())
+    .field("customer_id", FieldRule.transform(sharedIdentity))
+    .build());
+
+var plan = List.of(
+    new JdbcExportStep(
+        new JdbcTable("customer_db", "public", "customer"),
+        new JdbcExportTarget(
+            new JdbcTable("dm_test_customers", "public", "customer"),
+            "dm_mask_writer"), customers),
+    new JdbcExportStep(
+        new JdbcTable("customer_db", "public", "orders"),
+        new JdbcExportTarget(
+            new JdbcTable("dm_test_customers", "public", "orders"),
+            "dm_mask_writer"), orders)
+);
+var reports = JdbcExporter.exportAll(sourceDataSource, testDataSource,
+    plan, JdbcMaskingLimits.defaults());
+```
+
+```mermaid
+flowchart LR
+    subgraph Source[Read-only repeatable-read snapshot]
+        C[Customer C-42] --> O[Order references C-42]
+    end
+    subgraph Core[Shared key and scope]
+        H[HMAC identity]
+    end
+    C --> H
+    O --> H
+    subgraph Target[One serializable target transaction]
+        P[Masked customer PK] --> F[Matching order FK]
+        F --> V{All constraints satisfied?}
+        V -->|Yes| A[Commit all tables]
+        V -->|No| B[Rollback all tables]
+    end
+    H --> P
+    H --> F
+```
+
+The caller supplies parent-before-child order and matching policies. Target foreign keys must be validated, immediate NO ACTION/RESTRICT constraints wholly inside the plan. External references, cycles, self-references, deferred or cascading constraints and non-FK triggers are rejected. PostgreSQL enforces target PK/UNIQUE/FK/NOT NULL constraints. The exporter does not infer source relationships, prove semantic equivalence of keys or automatically choose policies. A wrong scope can cause a target FK violation and rollback; constraints alone cannot detect a wrong-but-consistent mapping. Use identical canonicalisation, keys and scopes. No database-wide discovery, subset selection or cyclic schema support.
+
 ## Architecture
 
 ```text
@@ -479,7 +532,7 @@ The engine is an in-process trusted API, not a sandbox. It handles string maps a
 - Treat retained values, stable pseudonyms and sensitive combinations of attributes as potentially personal data.
 - The engine throws before returning on invalid schema or failed transformation. This is not a transactional rollback of custom strategy side effects.
 - Review allowed output fields and downstream destinations. Masking can break application validation, column lengths or uniqueness.
-- Atomic file publication, multi-table database exports, tenant isolation, key lifecycle and reidentification tests are separate milestones.
+- Atomic file publication, automatic relational planning, tenant isolation, key lifecycle and reidentification tests are separate milestones.
 
 See [threat model](docs/threat-model.md) and [security policy](SECURITY.md).
 
@@ -547,7 +600,7 @@ It provides masking and pseudonymisation primitives. It does not certify GDPR co
 
 ### Does it support Spring Boot, Spring Batch, PostgreSQL or database masking?
 
-Not yet. The snapshot has a standalone Java engine and CSV/JSON adapters with YAML policies. PostgreSQL read-only preview has passed real integration tests; single-table export is experimental. Multi-table export, Spring Boot and Spring Batch integrations remain roadmap items. The core has no framework dependency.
+Not yet. The snapshot has a standalone Java engine and CSV/JSON adapters with YAML policies. PostgreSQL read-only preview has passed real integration tests; single-table export has passed integration CI; ordered multi-table export is experimental. Automatic relational planning, Spring Boot and Spring Batch integrations remain roadmap items. The core has no framework dependency.
 
 ### Is DataMask4j available on Maven Central?
 

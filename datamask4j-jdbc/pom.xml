@@ -3,7 +3,7 @@
     <parent><groupId>io.github.hador</groupId><artifactId>datamask4j-parent</artifactId><version>0.1.0-SNAPSHOT</version></parent>
     <artifactId>datamask4j-jdbc</artifactId>
     <name>datamask4j-jdbc</name>
-    <description>PostgreSQL read-only masking preview.</description>
+    <description>PostgreSQL masking preview and restricted transactional export.</description>
     <dependencies>
         <dependency><groupId>io.github.hador</groupId><artifactId>datamask4j-core</artifactId><version>${project.version}</version></dependency>
         <dependency><groupId>org.mockito</groupId><artifactId>mockito-junit-jupiter</artifactId><version>5.20.0</version><scope>test</scope></dependency>
@@ -12,6 +12,7 @@
         <profile>
             <id>postgres-integration</id>
             <dependencies>
+                <dependency><groupId>io.github.hador</groupId><artifactId>datamask4j-crypto</artifactId><version>${project.version}</version><scope>test</scope></dependency>
                 <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><version>42.7.14</version><scope>test</scope></dependency>
                 <dependency><groupId>org.testcontainers</groupId><artifactId>testcontainers-postgresql</artifactId><version>2.0.5</version><scope>test</scope></dependency>
                 <dependency><groupId>org.testcontainers</groupId><artifactId>testcontainers-junit-jupiter</artifactId><version>2.0.5</version><scope>test</scope></dependency>

@@ -35,8 +35,12 @@ The real PostgreSQL integration suite checks SELECT-only and write-capable roles
 ## Experimental PostgreSQL export
 - Distinct configured database names and datasources, dm_test_ target naming convention, explicit expected writer role, no privileged target role or table ownership, strict INSERT/SELECT grants and empty table checks.
 - Source is read-only and rolled back/closed before target commit. Target uses SERIALIZABLE, parameter-bound INSERT and explicit rollback. Exact retained columns, ordinary tables and restricted metadata are required.
-- This assumes trusted provisioning, stable schema/roles and no concurrent privileged DDL. Naming and grants are not proof of non-production; deployment isolation and credentials are required. No cross-database atomic transaction, multi-table planning, foreign keys or arbitrary destination features. Ambiguous commit failures require manual inspection. Custom strategies and database administrators are trusted.
+- This assumes trusted provisioning, stable schema/roles and no concurrent privileged DDL. Naming and grants are not proof of non-production; deployment isolation and credentials are required. No cross-database atomic transaction or arbitrary destination features. Ordered multi-table export supports restricted validated immediate target FKs within the plan. Ambiguous commit failures require manual inspection. Custom strategies and database administrators are trusted.
 - Integration tests exercise actual masking, nulls, target rejection and rollback; no guarantee of privacy compliance or anonymity.
+
+## Ordered relational export
+- One repeatable-read source snapshot and one serializable target transaction for up to 32 unique source and target tables. Global row cap, parent-first order, target references entirely within plan, no cyclic/deferred/cascading FKs or disabled/non-FK triggers. Target session requires origin trigger mode.
+- FK validity does not prove semantic linkage, privacy or anonymity. Caller supplies consistent keys, scopes and policies. Concurrent external writes and privileged DDL remain outside the trust model. Any pre-commit failure rolls back all target inserts; commit failure may be ambiguous.
 
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.

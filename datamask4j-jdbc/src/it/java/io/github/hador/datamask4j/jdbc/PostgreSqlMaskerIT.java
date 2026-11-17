@@ -3,6 +3,8 @@ package io.github.hador.datamask4j.jdbc;
 import io.github.hador.datamask4j.core.DataMasker;
 import io.github.hador.datamask4j.core.FieldRule;
 import io.github.hador.datamask4j.core.MaskingPolicy;
+import io.github.hador.datamask4j.crypto.HmacPseudonymizer;
+import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -49,6 +51,11 @@ class PostgreSqlMaskerIT {
             statement.execute("GRANT UPDATE ON public.customer TO mask_writer");
             statement.execute("GRANT UPDATE(email) ON public.customer TO mask_column_writer");
             statement.execute("CREATE ROLE dm_mask_writer LOGIN PASSWORD '" + TEST_PASSWORD + "'");
+            statement.execute("CREATE TABLE public.src_parent (id text PRIMARY KEY, name text)");
+            statement.execute("INSERT INTO public.src_parent VALUES ('C-42', 'Synthetic name')");
+            statement.execute("CREATE TABLE public.src_child (id text PRIMARY KEY, customer_id text REFERENCES public.src_parent(id))");
+            statement.execute("INSERT INTO public.src_child VALUES ('O-1', 'C-42')");
+            statement.execute("GRANT SELECT ON public.src_parent, public.src_child TO mask_reader");
             statement.execute("CREATE DATABASE dm_test_export");
         }
         createExportFixtures();
@@ -65,6 +72,11 @@ class PostgreSqlMaskerIT {
             statement.execute("CREATE TABLE public.export_wrong_type (email integer)");
             statement.execute("CREATE TABLE public.export_excess_privileges (email text)");
             statement.execute("CREATE TABLE public.export_bound (email text)");
+            for (String suffix : List.of("ok", "rollback", "wrong_order", "external", "bound", "deferred")) {
+                statement.execute("CREATE TABLE public.parent_" + suffix + " (id text PRIMARY KEY, name text)");
+                statement.execute("CREATE TABLE public.child_" + suffix + " (id text PRIMARY KEY, customer_id text REFERENCES public.parent_"
+                        + suffix + "(id)" + (suffix.equals("deferred") ? " DEFERRABLE INITIALLY DEFERRED" : "") + ")");
+            }
             statement.execute("GRANT USAGE ON SCHEMA public TO dm_mask_writer");
             statement.execute("GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public TO dm_mask_writer");
             statement.execute("GRANT DELETE ON public.export_excess_privileges TO dm_mask_writer");
@@ -196,6 +208,79 @@ class PostgreSqlMaskerIT {
         var sameDatasource = reader();
         assertThrows(JdbcMaskingException.class, () ->
                 exporter().export(sameDatasource, CUSTOMER, sameDatasource, target("export_bound")));
+    }
+
+    private static List<JdbcExportStep> plan(String suffix, boolean consistent) {
+        byte[] key = new byte[32]; // Synthetic test key only.
+        var identity = new HmacPseudonymizer(key, "customer:v1");
+        var foreignKey = consistent ? identity : new HmacPseudonymizer(key, "wrong-scope");
+        var parentMasker = new DataMasker(MaskingPolicy.builder()
+                .field("id", FieldRule.transform(identity)).field("name", FieldRule.redact()).build());
+        var childMasker = new DataMasker(MaskingPolicy.builder()
+                .field("id", FieldRule.keep()).field("customer_id", FieldRule.transform(foreignKey)).build());
+        return List.of(new JdbcExportStep(table("src_parent"), target("parent_" + suffix), parentMasker),
+                new JdbcExportStep(table("src_child"), target("child_" + suffix), childMasker));
+    }
+
+    private static List<JdbcMaskingReport> exportPlan(List<JdbcExportStep> plan) {
+        return JdbcExporter.exportAll(reader(), targetWriter(), plan, JdbcMaskingLimits.defaults());
+    }
+
+    @Test
+    void shouldExportRelatedTablesWithSharedPseudonymAndAtomicCommit() throws SQLException {
+        assertEquals(List.of(new JdbcMaskingReport(1, 2, 2), new JdbcMaskingReport(1, 2, 2)),
+                exportPlan(plan("ok", true)));
+        try (var connection = targetAdmin().getConnection(); var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT p.id, p.name, c.customer_id FROM public.parent_ok p JOIN public.child_ok c ON p.id=c.customer_id")) {
+            assertTrue(rows.next());
+            assertTrue(rows.getString(1).matches("dm1_[A-Za-z0-9_-]{43}"));
+            assertEquals("[REDACTED]", rows.getString(2));
+            assertEquals(rows.getString(1), rows.getString(3));
+            assertFalse(rows.next());
+        }
+    }
+
+    @Test
+    void shouldRollbackAllTablesWhenForeignKeyPseudonymsDoNotMatch() throws SQLException {
+        assertThrows(JdbcMaskingException.class, () -> exportPlan(plan("rollback", false)));
+        assertEquals(0, targetCount("parent_rollback"));
+        assertEquals(0, targetCount("child_rollback"));
+    }
+
+    @Test
+    void shouldRejectChildBeforeParentAndForeignKeysOutsidePlan() throws SQLException {
+        var wrong = plan("wrong_order", true);
+        assertThrows(JdbcMaskingException.class, () -> exportPlan(List.of(wrong.getLast(), wrong.getFirst())));
+        assertEquals(0, targetCount("child_wrong_order"));
+        assertEquals(0, targetCount("parent_wrong_order"));
+        var external = plan("external", true);
+        assertThrows(JdbcMaskingException.class, () -> exportPlan(List.of(external.getFirst())));
+        assertEquals(0, targetCount("parent_external"));
+        assertThrows(JdbcMaskingException.class, () -> exportPlan(List.of(external.getLast())));
+        assertEquals(0, targetCount("child_external"));
+    }
+
+    @Test
+    void shouldRollbackAllTablesWhenGlobalRowBudgetIsExceeded() throws SQLException {
+        assertThrows(JdbcMaskingException.class, () -> JdbcExporter.exportAll(reader(), targetWriter(),
+                plan("bound", true), new JdbcMaskingLimits(1, 2, 100, 1, 5)));
+        assertEquals(0, targetCount("parent_bound"));
+        assertEquals(0, targetCount("child_bound"));
+    }
+
+    @Test
+    void shouldRejectDeferredForeignKeys() throws SQLException {
+        assertThrows(JdbcMaskingException.class, () -> exportPlan(plan("deferred", true)));
+        assertEquals(0, targetCount("parent_deferred"));
+        assertEquals(0, targetCount("child_deferred"));
+    }
+
+    @Test
+    void shouldRejectEmptyDuplicateAndOversizedPlans() {
+        var valid = plan("bound", true);
+        assertThrows(JdbcMaskingException.class, () -> exportPlan(List.of()));
+        assertThrows(JdbcMaskingException.class, () -> exportPlan(List.of(valid.getFirst(), valid.getFirst())));
+        assertThrows(JdbcMaskingException.class, () -> exportPlan(java.util.Collections.nCopies(33, valid.getFirst())));
     }
 
     private static JdbcTable table(String name) {
