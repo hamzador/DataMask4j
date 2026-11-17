@@ -37,6 +37,8 @@ jobs:
           java -jar datamask4j-cli/target/datamask4j-cli-0.1.0-SNAPSHOT-standalone.jar mask --format csv --input "$work/input.csv" --output "$work/masked.csv" --policy "$work/policy.yml"
           printf 'email\r\n[REDACTED]\r\n' > "$work/expected.csv"
           cmp "$work/expected.csv" "$work/masked.csv"
+      - name: Coverage baseline
+        run: python3 scripts/coverage_summary.py | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload test and coverage reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -47,3 +49,126 @@ jobs:
             **/target/failsafe-reports/*.xml
             **/target/site/jacoco/**
           if-no-files-found: warn
+
+  mutation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and install core and crypto
+        run: mvn -B -ntp -pl datamask4j-core,datamask4j-crypto -am -DskipTests clean install
+      - name: PIT core and crypto mutation baseline
+        run: mvn -B -ntp -pl datamask4j-core,datamask4j-crypto test-compile org.pitest:pitest-maven:1.30.2:mutationCoverage
+      - name: Upload mutation-reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: mutation-reports
+          path: |
+            **/target/pit-reports/**
+          if-no-files-found: warn
+
+  static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile and install modules
+        run: mvn -B -ntp -DskipTests clean install
+      - name: SpotBugs baseline (reports, review required)
+        run: mvn -B -ntp -pl datamask4j-core,datamask4j-crypto,datamask4j-file,datamask4j-jdbc,datamask4j-faker,datamask4j-annotations,datamask4j-spring-boot-starter,datamask4j-spring-batch,datamask4j-cli com.github.spotbugs:spotbugs-maven-plugin:4.10.5.0:spotbugs -Dspotbugs.xmlOutput=true
+      - name: Upload spotbugs-reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: spotbugs-reports
+          path: |
+            **/target/spotbugsXml.xml
+          if-no-files-found: warn
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Resolve all modules including PostgreSQL test profile
+        run: mvn -B -ntp -Ppostgres-integration -DskipTests clean install
+      - name: Generate CycloneDX SBOM
+        run: mvn -B -ntp -Ppostgres-integration org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeAggregateBom -DincludeTestScope=true -DoutputReactorProjects=false -Dcyclonedx.skipNotDeployed=false -Dcyclonedx.skipAttach=true -DoutputFormat=json
+      - name: OSV dependency gate
+        run: python3 scripts/audit_dependencies.py target/bom.json --output target/osv-report.json
+      - name: Upload dependency-audit
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dependency-audit
+          path: |
+            target/bom.json
+            target/osv-report.json
+          if-no-files-found: warn
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout history
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check reachable Git history
+        run: bash scripts/audit_git_history.sh
+
+  image-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Scan pinned PostgreSQL image
+        run: bash scripts/audit_postgres_image.sh
+      - name: Upload postgres-image-audit
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: postgres-image-audit
+          path: |
+            target/image-audit/*.json
+          if-no-files-found: warn
+
+  documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Check documentation metadata and links
+        run: python3 scripts/check_docs.py

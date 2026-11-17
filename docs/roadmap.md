@@ -7,7 +7,7 @@
 
 ## M2 — Structured data, implementation in progress
 - Implemented in snapshot: bounded streaming CSV/flat JSON, exact schema, restricted YAML policy AST. Initial CI passed (31 tests).
-- Added malformed input, limits, duplicate keys, policy rejection and formula prefix tests. Added standalone CLI with private staging and atomic no-overwrite hard-link publication; CI pending. Remaining: reusable file publication API, parser advisory scanning, more encoding and fuzz tests, XML.
+- Added malformed input, limits, duplicate keys, policy rejection and formula prefix tests. Added standalone CLI with private staging and atomic no-overwrite hard-link publication; CI passed (110 tests and CLI smoke test). Remaining: reusable file publication API, parser advisory scanning, more encoding and fuzz tests, XML.
 
 ## M3 — JDBC, read-only preview in progress
 - First slice: PostgreSQL-only counts report, SELECT-only role check, read-only transaction, schema and type validation, bounded rows/values; no target writes. Unit CI passed (40 reactor tests).
@@ -23,6 +23,10 @@
 - Initial faker module: seven curated European locale variants, deterministic name and reserved test-domain email strategies. CI passed (71 tests total). Richer locale datasets, YAML integration and safe additional formats remain.
 - Safe audit counts, optional synthetic-data generation, key scoping/rotation, performance and resource limits.
 - SBOM, dependency/secret scanning, SpotBugs, mutation testing and misuse review; no raw data in reports.
+
+## M5b — Grouped quality and documentation
+- Prepared five static documentation pages, sitemap, canonical tags and offline validation; Pages activation/indexing not verified.
+- One CI workflow now groups seven parallel jobs: full verification with JaCoCo baseline, PIT, SpotBugs, SBOM/OSV, Gitleaks, Trivy PostgreSQL image and documentation checks. New CI pending. Review reported findings, add justified coverage and mutation thresholds and complete build-plugin/helper-image scans before release.
 
 ## M6 — First public release
 - Confirm ownership of requested Maven namespace io.github.hador.

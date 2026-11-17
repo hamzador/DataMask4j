@@ -184,11 +184,35 @@ JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT
 | Spring Boot opt-in RecordMasker starter | CI passed (91 reactor tests) |
 | Spring Batch 6 explicit item processors | CI passed (99 total tests) |
 | Spring Batch JDBC chunk rollback and restart fixture | CI passed (101 total tests) |
-| Offline CSV/JSON CLI with safe publication | Implemented in snapshot; CI pending |
+| Offline CSV/JSON CLI with safe publication | CI passed (110 total tests and runnable JAR smoke test) |
 | European synthetic names and test-domain email (Java API) | Initial CI passed (71 tests total) |
 | Expanded faker formats and key rotation | Planned |
 
 Detailed roadmap below. Only use features that exist in the current source tree.
+
+## Documentation website and parallel CI
+
+A static, English documentation website is prepared under [docs/](docs/), with five topic-focused pages, unique titles and descriptions, canonical URLs, a sitemap and no third-party scripts. To publish it, the maintainer must enable GitHub Pages from the repository's main branch, /docs folder. Intended address: `https://hamzador.github.io/DataMask4j/` (publication not verified). Do not assume indexing or ranking.
+
+```mermaid
+flowchart LR
+    A[One push] --> B[Build, integration and CLI smoke]
+    A --> C[PIT mutation baseline]
+    A --> D[SpotBugs baseline]
+    A --> E[SBOM and OSV gate]
+    A --> F[Gitleaks Git history]
+    A --> G[Trivy PostgreSQL image gate]
+    A --> H[Documentation checks]
+    B --> Z[Review all results]
+    C --> Z
+    D --> Z
+    E --> Z
+    F --> Z
+    G --> Z
+    H --> Z
+```
+
+Independent jobs run on separate runners. JaCoCo, PIT and SpotBugs establish baselines and produce reports; no new numerical coverage/mutation threshold or zero-SpotBugs-finding gate is asserted until reviewed. OSV, Gitleaks and HIGH/CRITICAL PostgreSQL image findings fail their jobs. The SBOM includes project dependencies and PostgreSQL profile test dependencies, not a complete build-plugin inventory. Trivy scans the pinned PostgreSQL fixture image, not every Testcontainers helper image. All seven jobs must be reviewed; neither a green scanner nor a green build proves production safety.
 
 ## Requirements and build
 

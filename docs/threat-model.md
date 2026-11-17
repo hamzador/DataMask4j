@@ -63,5 +63,9 @@ The real PostgreSQL integration suite checks SELECT-only and write-capable roles
 - Explicit UTF-8 local files only; final symlinks rejected; private POSIX 0700 directory and 0600 staging/output, no overwrite via hard-link publication after successful stream closure. Trusted stable parent paths are required; not a sandbox against concurrent privileged filesystem changes.
 - Keys are read as exactly 32 raw bytes from owner-only regular files, not command-line values. Temporary key array is cleared; JVM copies remain. Output is count-only; staging cleanup is best effort and a crash can leave private files. No fsync guarantee, remote publishing or database CLI.
 
+## CI assurance boundary
+- Parallel quality baseline collects per-module JaCoCo, core/crypto PIT and all-module SpotBugs reports. These reports need review; no threshold or zero-finding claim is made yet.
+- OSV gates known Maven component advisories on the aggregate SBOM (including test profile); Gitleaks checks reachable history using a checksum-pinned tool; Trivy gates HIGH/CRITICAL findings on the pinned PostgreSQL image. Database freshness and scanner completeness are external, and helper images, Maven plugin classpaths and shaded artifact provenance need further review. No automated deployment or release.
+
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.

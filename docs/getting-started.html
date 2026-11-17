@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Getting Started: CSV, JSON &amp; Java Data Masking | DataMask4j</title><meta name="description" content="Build DataMask4j and mask local CSV or flat JSON files using a strict YAML policy and Java 21 CLI."><meta name="robots" content="index,follow"><link rel="canonical" href="https://hamzador.github.io/DataMask4j/getting-started.html"><meta property="og:title" content="Getting Started: CSV, JSON &amp; Java Data Masking | DataMask4j"><meta property="og:description" content="Build DataMask4j and mask local CSV or flat JSON files using a strict YAML policy and Java 21 CLI."><meta property="og:url" content="https://hamzador.github.io/DataMask4j/getting-started.html"><meta property="og:type" content="website"><link rel="stylesheet" href="styles.css"></head><body><header><nav aria-label="Documentation"><a class="brand" href="index.html">DataMask4j</a><div><a href="getting-started.html">Start</a><a href="postgresql.html">PostgreSQL</a><a href="spring.html">Spring</a><a href="security.html">Security</a></div></nav></header><main><h1>Get started with local data masking</h1><p>Java 21 and Maven 3.9+ are required. Build the unpublished snapshot locally:</p><pre><code>git clone https://github.com/hamzador/DataMask4j.git
+cd DataMask4j
+mvn -B -ntp -pl datamask4j-cli -am clean verify
+mkdir -m 700 masked</code></pre><h2>Classify every field</h2><p>Example synthetic <code>customers.csv</code>:</p><pre><code>email,notes,country
+fixture@example.test,synthetic,FR</code></pre><p>Example <code>policy.yml</code>:</p><pre><code>fields:
+  email:
+    strategy: redact
+  notes:
+    strategy: drop
+  country:
+    strategy: keep</code></pre><h2>Run the CLI</h2><pre><code>java -jar datamask4j-cli/target/datamask4j-cli-0.1.0-SNAPSHOT-standalone.jar \
+  mask --format csv --input customers.csv \
+  --output masked/customers.csv --policy policy.yml</code></pre><p>Expected result:</p><pre><code>email,country
+[REDACTED],FR</code></pre><p>Use <code>--format json</code> for a flat JSON array of string/null objects. HMAC policies require <code>--key-file</code>, an owner-only file of exactly 32 raw random bytes. Never supply a key value in the command line or policy.</p><h2>File safety</h2><p>The CLI requires trusted local paths and a private POSIX directory (0700) with hard-link support. It writes a 0600 staging file and publishes after success without overwriting. A crash may leave a private temporary file. Windows-native support and crash durability are not provided.</p><h2>Use the Java API</h2><pre><code>var policy = MaskingPolicy.builder()
+    .field("email", FieldRule.redact())
+    .field("notes", FieldRule.drop())
+    .field("country", FieldRule.keep())
+    .build();
+var masker = new DataMasker(policy);</code></pre><p>See <a href="https://github.com/hamzador/DataMask4j#quick-start">the Java examples</a> and <a href="security.html">security limitations</a>.</p></main><footer><a href="https://github.com/hamzador/DataMask4j">GitHub repository</a> · Apache 2.0 · Development snapshot</footer></body></html>
