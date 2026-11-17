@@ -1,6 +1,10 @@
-# DataMask4j
+# DataMask4j — Java Data Masking & GDPR Pseudonymisation
 
-**Privacy-first data masking for Java — build safer test datasets without sending sensitive records to a third-party service.**
+**Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
+
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. Future Spring Boot, Spring Batch, JDBC and CSV/JSON adapters are planned, not yet implemented.
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 [![Java 21+](https://img.shields.io/badge/Java-21%2B-blue)](https://openjdk.org/projects/jdk/21/)
 [![Build and test](https://github.com/hamzador/DataMask4j/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzador/DataMask4j/actions/workflows/ci.yml)
@@ -71,18 +75,18 @@ mvn -B -ntp clean verify
 mvn -B -ntp clean install
 ```
 
-The second command installs development artifacts into your local Maven repository only. No remote publishing is configured.
+The second command installs development artifacts into your local Maven repository only. No remote publishing is configured. The planned Maven group ID is `io.github.hador`; namespace ownership must be verified in the Central Portal before publishing. The GitHub repository remains `hamzador/DataMask4j`.
 
 ### Maven coordinates (local development only)
 
 ```xml
 <dependency>
-    <groupId>io.github.hamzador</groupId>
+    <groupId>io.github.hador</groupId>
     <artifactId>datamask4j-core</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
 <dependency>
-    <groupId>io.github.hamzador</groupId>
+    <groupId>io.github.hador</groupId>
     <artifactId>datamask4j-crypto</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
@@ -93,7 +97,7 @@ The crypto module depends on core. Use only core if you do not need HMAC. These 
 ## Quick start
 
 ```java
-import io.github.hamzador.datamask4j.core.*;
+import io.github.hador.datamask4j.core.*;
 import java.util.Map;
 
 var policy = MaskingPolicy.builder()
@@ -130,8 +134,8 @@ The phone field is absent, the source map is unchanged, and the ID is deliberate
 Use a randomly generated key of at least 32 bytes, supplied by an approved secret manager. Never commit the key, log it or send it with the output dataset. The following example reads a Base64-encoded key from the environment; environment variables are a local example, not a full key management solution.
 
 ```java
-import io.github.hamzador.datamask4j.core.*;
-import io.github.hamzador.datamask4j.crypto.HmacPseudonymizer;
+import io.github.hador.datamask4j.core.*;
+import io.github.hador.datamask4j.crypto.HmacPseudonymizer;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Map;
@@ -178,7 +182,7 @@ Properties of the default token:
 ```java
 import java.util.HashMap;
 import java.util.Map;
-import io.github.hamzador.datamask4j.core.*;
+import io.github.hador.datamask4j.core.*;
 
 var masker = new DataMasker(MaskingPolicy.builder()
     .field("email", FieldRule.redact())
@@ -254,7 +258,29 @@ See [roadmap](docs/roadmap.md). Report suspected vulnerabilities privately accor
 
 ## License
 
-Apache-2.0 is the intended project license. See [LICENSE](LICENSE). The first release must undergo owner and third-party licensing review.
+DataMask4j is licensed under Apache-2.0. See [LICENSE](LICENSE). The first release must undergo owner and third-party licensing review.
+
+## Frequently asked questions
+
+### How can I mask sensitive data in Java?
+
+Define a strict field policy with DataMask4j Core, choose KEEP, DROP, REDACT, constant replacement or a trusted custom strategy, and call DataMasker.mask on a string map. The original record remains unchanged.
+
+### How can I pseudonymise customer IDs consistently?
+
+Use DataMask4j Crypto with a secret key and an explicit shared identity scope. Equal IDs produce equal versioned HMAC tokens in that scope; different scopes produce unrelated tokens. This supports controlled test-data linkage, not automatic database referential integrity.
+
+### Is this a GDPR anonymisation library?
+
+It provides masking and pseudonymisation primitives. It does not certify GDPR compliance or anonymisation. Pseudonymised data may still be personal data.
+
+### Does it support Spring Boot, Spring Batch, PostgreSQL or database masking?
+
+Not yet. The initial milestone is a standalone Java engine. JDBC, Spring Boot and Spring Batch integration are roadmap items. The core has no framework dependency.
+
+### Is DataMask4j available on Maven Central?
+
+Not yet. Build the snapshot locally. The requested group ID is `io.github.hador`; a public release requires verified namespace ownership and release approval.
 
 ## Project status
 

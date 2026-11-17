@@ -1,0 +1,13 @@
+target/
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.jks
+*.log
