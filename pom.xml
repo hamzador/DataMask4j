@@ -10,7 +10,7 @@
     <url>https://github.com/hamzador/DataMask4j</url>
     <licenses><license><name>Apache License, Version 2.0</name><url>https://www.apache.org/licenses/LICENSE-2.0</url><distribution>repo</distribution></license></licenses>
     <scm><connection>scm:git:https://github.com/hamzador/DataMask4j.git</connection><developerConnection>scm:git:ssh://git@github.com/hamzador/DataMask4j.git</developerConnection><url>https://github.com/hamzador/DataMask4j</url><tag>HEAD</tag></scm>
-    <modules><module>datamask4j-core</module><module>datamask4j-crypto</module><module>datamask4j-file</module><module>datamask4j-jdbc</module></modules>
+    <modules><module>datamask4j-core</module><module>datamask4j-crypto</module><module>datamask4j-file</module><module>datamask4j-jdbc</module><module>datamask4j-faker</module></modules>
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

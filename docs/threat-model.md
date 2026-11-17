@@ -42,5 +42,9 @@ The real PostgreSQL integration suite checks SELECT-only and write-capable roles
 - One repeatable-read source snapshot and one serializable target transaction for up to 32 unique source and target tables. Global row cap, parent-first order, target references entirely within plan, no cyclic/deferred/cascading FKs or disabled/non-FK triggers. Target session requires origin trigger mode.
 - FK validity does not prove semantic linkage, privacy or anonymity. Caller supplies consistent keys, scopes and policies. Concurrent external writes and privileged DDL remain outside the trust model. Any pre-commit failure rolls back all target inserts; commit failure may be ambiguous.
 
+## Synthetic fixture substitutions
+- Names use a small fixed vocabulary and may coincide with real people; collisions and distribution leakage are expected. A common seed is required for consistent first/last/full name. Email uses a full keyed digest and reserved test-domain suffix, but outbound messaging must still be blocked.
+- No new external runtime dependencies. Scope separation uses reserved faker:v1 prefixes, locale and purpose. Key reuse, tokenisation oracles and remaining indirect identifiers are residual risks. These substitutions do not establish anonymity. No routable phone numbers or real-world identity/financial identifiers are generated.
+
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.

@@ -2,7 +2,7 @@
 
 **Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
 
-DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. Spring Boot, Spring Batch, automatic relational planning and XML are planned.
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. European locale-aware synthetic names and test-domain email substitution are in development. Spring Boot, Spring Batch, automatic relational planning and XML are planned.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -35,7 +35,7 @@ References: [GDPR official text](https://eur-lex.europa.eu/eli/reg/2016/679/oj),
 
 ## How DataMask4j works
 
-The diagrams below show the implemented local masking flow and the planned database export boundary. GitHub renders Mermaid directly; the surrounding text also explains the architecture for search engines and readers without diagram support.
+The diagrams below show local masking, restricted database exports and deterministic European test fixtures. GitHub renders Mermaid directly; the surrounding text also explains the architecture for search engines and readers without diagram support.
 
 ### PostgreSQL data masking dry run (development snapshot)
 
@@ -179,9 +179,10 @@ JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT
 | Restricted YAML policy loading | Implemented (snapshot; initial CI passed) |
 | PostgreSQL JDBC read-only dry run | Unit and real PostgreSQL CI passed (50 reactor tests) |
 | Single-table transactional PostgreSQL export | Initial CI passed (57 tests total) |
-| Ordered multi-table export with restricted target foreign keys | Experimental implementation; CI pending |
+| Ordered multi-table export with restricted target foreign keys | Initial CI passed (63 tests total) |
 | Spring Boot / Spring Batch integrations | Planned |
-| Dry-run, safe reports, key rotation and faker adapters | Planned |
+| European synthetic names and test-domain email (Java API) | Implemented in snapshot; CI pending |
+| Expanded faker formats and key rotation | Planned |
 
 Detailed roadmap below. Only use features that exist in the current source tree.
 
@@ -509,12 +510,71 @@ flowchart LR
 
 The caller supplies parent-before-child order and matching policies. Target foreign keys must be validated, immediate NO ACTION/RESTRICT constraints wholly inside the plan. External references, cycles, self-references, deferred or cascading constraints and non-FK triggers are rejected. PostgreSQL enforces target PK/UNIQUE/FK/NOT NULL constraints. The exporter does not infer source relationships, prove semantic equivalence of keys or automatically choose policies. A wrong scope can cause a target FK violation and rollback; constraints alone cannot detect a wrong-but-consistent mapping. Use identical canonicalisation, keys and scopes. No database-wide discovery, subset selection or cyclic schema support.
 
+## European synthetic test data (Faker module)
+
+The optional `datamask4j-faker` module provides deterministic, locale-aware field substitutions using the existing HMAC engine. It adds no third-party runtime dependency. Seven curated language/region variants are provided: fr-FR, de-DE, es-ES, it-IT, fr-BE, nl-BE, nl-NL. Each uses a small fixed vocabulary of eight first names and eight surnames, not an exhaustive or statistically representative name generator.
+
+```xml
+<dependency>
+    <groupId>io.github.hador</groupId>
+    <artifactId>datamask4j-faker</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+</dependency>
+```
+
+```java
+import io.github.hador.datamask4j.core.*;
+import io.github.hador.datamask4j.faker.*;
+import java.util.Map;
+
+// Load a random key of at least 32 bytes from your approved secret manager.
+var faker = new EuropeanFaker(secretKey, "qa-customers:v1", EuropeanLocale.FR_FR);
+var masker = new DataMasker(MaskingPolicy.builder()
+    .field("displayName", FieldRule.transform(faker.fullName()))
+    .field("email", FieldRule.transform(faker.email()))
+    .field("phone", FieldRule.drop())
+    .build());
+var result = masker.mask(Map.of(
+    "displayName", "Synthetic input",
+    "email", "private@example.test",
+    "phone", "not needed"
+));
+```
+
+The name is selected from the locale vocabulary; email uses a 64-character lowercase hexadecimal HMAC digest followed by `@example.test` (77 characters in total). No original substring or input-controlled domain is copied. The fixed .test top-level domain is reserved for testing ([RFC 2606](https://www.rfc-editor.org/rfc/rfc2606)); disable outbound email in all test environments anyway. No unique-name guarantee: collisions are intentional and expected. Names may coincide with real people.
+
+### Consistent identity fixtures
+
+```java
+String seed = "C-42"; // Opaque synthetic identity seed
+String first = faker.firstName().transform(seed);
+String last = faker.lastName().transform(seed);
+String full = faker.fullName().transform(seed);
+assert full.equals(first + " " + last);
+```
+
+Name components agree only when the same seed, key, scope, locale and module version are used. Masking separate fields with different original inputs cannot guarantee cross-field agreement; applications must deliberately supply a common identity seed where needed. Email tokens are separated from name selection by purpose and locale. Reserve the `faker:v1:` scope prefix for this module. Key/scope/locale changes can change generated values. Name vocabularies may change in future explicitly versioned algorithms.
+
+```mermaid
+flowchart LR
+    S[Opaque field value or identity seed] --> H[Scoped HMAC]
+    K[External key] --> H
+    L[Explicit locale] --> H
+    H --> N[Curated name selection]
+    H --> E[Lowercase hex test email]
+    N --> O[Masked record]
+    E --> O
+```
+
+These are pseudonymising substitutions, not independently generated anonymous datasets. Equality/frequency and auxiliary attributes can still leak information. No valid phone numbers, deliverable addresses, national identifiers or bank details are generated in this milestone, avoiding accidental use of real contact or financial details. YAML integration of these strategies is not yet supported; use the Java API. Richer vocabularies, realistic locale formats and separately reviewed fixture providers are future work.
+
 ## Architecture
 
 ```text
 DataMask4j
 ├── datamask4j-core       # policy, field rules, masking engine
 ├── datamask4j-crypto     # scoped HMAC pseudonymisation
+├── datamask4j-faker      # deterministic European fixture substitutions
 ├── datamask4j-file       # CSV, JSON and YAML policies
 ├── datamask4j-jdbc       # PostgreSQL read-only preview
 ├── docs/                # threat model and roadmap

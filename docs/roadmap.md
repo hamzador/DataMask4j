@@ -13,13 +13,14 @@
 - First slice: PostgreSQL-only counts report, SELECT-only role check, read-only transaction, schema and type validation, bounded rows/values; no target writes. Unit CI passed (40 reactor tests).
 - Separate source and target connections, source read-only credentials, no updates to source.
 - Explicit allowed destinations, dry run, fail closed on unmatched columns, PK/FK/unique/null semantics.
-- PostgreSQL first; then evaluate MySQL and other engines. Added a mandatory CI Testcontainers suite for actual PostgreSQL privileges, read-only transactions, source invariance and rejection paths. Integration CI passed (40 unit + 10 real PostgreSQL tests). Added experimental single-table INSERT-only export with strict target checks and rollback; CI passed (57 total, 17 PostgreSQL tests). Added ordered multi-table export in one transaction with restricted target FK checks, global row budget and repeatable-read snapshot. New CI pending. Automatic planning remains.
+- PostgreSQL first; then evaluate MySQL and other engines. Added a mandatory CI Testcontainers suite for actual PostgreSQL privileges, read-only transactions, source invariance and rejection paths. Integration CI passed (40 unit + 10 real PostgreSQL tests). Added experimental single-table INSERT-only export with strict target checks and rollback; CI passed (57 total, 17 PostgreSQL tests). Added ordered multi-table export in one transaction with restricted target FK checks, global row budget and repeatable-read snapshot. CI passed (63 total, 23 real PostgreSQL tests). Automatic planning remains.
 
 ## M4 — Java and Spring
 - Java records/annotations, immutable copies, explicit nested transformations; Spring Boot starter and Spring Batch adapters.
 - Independent consumers, version matrix and no framework dependency in core.
 
-## M5 — Operational hardening
+## M5 — Synthetic data and operational hardening
+- Initial faker module: seven curated European locale variants, deterministic name and reserved test-domain email strategies. CI pending. Richer locale datasets, YAML integration and safe additional formats remain.
 - Safe audit counts, optional synthetic-data generation, key scoping/rotation, performance and resource limits.
 - SBOM, dependency/secret scanning, SpotBugs, mutation testing and misuse review; no raw data in reports.
 
