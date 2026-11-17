@@ -183,7 +183,8 @@ JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT
 | Ordered multi-table export with restricted target foreign keys | Initial CI passed (63 tests total) |
 | Spring Boot opt-in RecordMasker starter | CI passed (91 reactor tests) |
 | Spring Batch 6 explicit item processors | CI passed (99 total tests) |
-| Spring Batch JDBC chunk rollback and restart fixture | Integration tests added; CI pending |
+| Spring Batch JDBC chunk rollback and restart fixture | CI passed (101 total tests) |
+| Offline CSV/JSON CLI with safe publication | Implemented in snapshot; CI pending |
 | European synthetic names and test-domain email (Java API) | Initial CI passed (71 tests total) |
 | Expanded faker formats and key rotation | Planned |
 
@@ -766,7 +767,7 @@ flowchart LR
     F --> B[Batch failure or rollback per configuration]
 ```
 
-Only the application owns transaction boundaries. No skip, retry or restart policy is registered by the module. A failed chunk must not be allowed to bypass masking; do not configure a fallback writer for original items. For deterministic reprocessing use the same reviewed policy, key and scope across retries and restarts; never reprocess already masked items as raw source. Custom strategies, record constructors and accessors must be pure and thread-safe when used concurrently. Readers, listeners, execution contexts, job parameters, writers and tracing are outside the masking boundary and must not retain or log raw data. A transactional writer and appropriate job repository are required for actual rollback and restart guarantees. Processor CI passed; the new JDBC job rollback/restart integration tests are pending CI validation.
+Only the application owns transaction boundaries. No skip, retry or restart policy is registered by the module. A failed chunk must not be allowed to bypass masking; do not configure a fallback writer for original items. For deterministic reprocessing use the same reviewed policy, key and scope across retries and restarts; never reprocess already masked items as raw source. Custom strategies, record constructors and accessors must be pure and thread-safe when used concurrently. Readers, listeners, execution contexts, job parameters, writers and tracing are outside the masking boundary and must not retain or log raw data. A transactional writer and appropriate job repository are required for actual rollback and restart guarantees. Processor and JDBC job rollback/restart tests passed CI.
 
 ### Spring Batch transaction and restart integration tests
 
@@ -785,6 +786,33 @@ flowchart TD
 
 Run with `mvn -B -ntp -pl datamask4j-spring-batch -am clean verify`. The tests use synthetic fixtures only, no external database or credentials. This is evidence for the specific synchronous JDBC job, reader and transaction manager configuration after CI validation; it does not guarantee restart safety for arbitrary readers, partitioning, distributed jobs, nontransactional destinations or key changes. Earlier committed chunks are not rolled back when a later chunk fails. Publish the complete dataset only after a successful job and review.
 
+## Offline data masking CLI
+
+The optional standalone CLI masks UTF-8 CSV or flat JSON using a reviewed YAML field policy. No Spring or database is required. Build locally:
+
+```bash
+mvn -B -ntp -pl datamask4j-cli -am clean verify
+mkdir -m 700 masked
+java -jar datamask4j-cli/target/datamask4j-cli-0.1.0-SNAPSHOT-standalone.jar \
+  mask --format csv --input customers.csv \
+  --output masked/customers.csv --policy policy.yml
+```
+
+For HMAC policies, add `--key-file /path/to/private-key` pointing to an existing owner-only file of exactly 32 raw cryptographically random bytes. Never pass the key value on the command line or store it in the policy. All file paths and their parent directories must be trusted, stable local paths. The output directory must already exist with POSIX mode 0700 and support hard links; output files have mode 0600. Platforms without these features fail closed. The CLI rejects final-component symlinks for inputs, policy, key and output directory, and rejects existing output (including dangling symlinks and hard links). It never overwrites input or existing destination.
+
+```mermaid
+flowchart TD
+    A[Input and YAML policy] --> B[Validate paths and private output directory]
+    B --> C[Load policy and external key if needed]
+    C --> D[Stream masked records to private staging file]
+    D --> E{Complete success and close?}
+    E -->|Yes| F[Publish with no-overwrite hard link]
+    E -->|No| G[Delete staging file]
+    F --> H[Remove staging name and print count]
+```
+
+Exit codes: 0 success/help, 1 processing failure, 2 invalid arguments. Output contains counts only, and errors omit filenames, values and causes. If staging cleanup fails, a generic warning is printed; inspect the private directory. A crash can leave a staging file. This is atomic name publication, not fsync/power-loss durability or protection against a malicious concurrent directory owner. Do not use shared or untrusted paths, and review all KEEP rules before exporting. No database CLI, YAML faker adapters, recursive discovery or overwrite mode in this milestone.
+
 ## Architecture
 
 ```text
@@ -795,6 +823,7 @@ DataMask4j
 ├── datamask4j-annotations # immutable-copy masking for public Java records
 ├── datamask4j-spring-boot-starter # opt-in RecordMasker auto-configuration
 ├── datamask4j-spring-batch # explicit map and record item processors
+├── datamask4j-cli # offline CSV/JSON command-line masking
 ├── datamask4j-file       # CSV, JSON and YAML policies
 ├── datamask4j-jdbc       # PostgreSQL read-only preview
 ├── docs/                # threat model and roadmap

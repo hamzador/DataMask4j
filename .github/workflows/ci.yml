@@ -25,6 +25,18 @@ jobs:
           java-version: '21'
       - name: Build and test
         run: mvn -B -ntp -Ppostgres-integration clean verify
+      - name: Smoke test standalone CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          chmod 700 "$work"
+          printf 'email,notes\nfixture@example.test,synthetic\n' > "$work/input.csv"
+          printf 'fields:\n  email:\n    strategy: redact\n  notes:\n    strategy: drop\n' > "$work/policy.yml"
+          java -jar datamask4j-cli/target/datamask4j-cli-0.1.0-SNAPSHOT-standalone.jar mask --format csv --input "$work/input.csv" --output "$work/masked.csv" --policy "$work/policy.yml"
+          printf 'email\r\n[REDACTED]\r\n' > "$work/expected.csv"
+          cmp "$work/expected.csv" "$work/masked.csv"
       - name: Upload test and coverage reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

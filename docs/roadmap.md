@@ -7,7 +7,7 @@
 
 ## M2 — Structured data, implementation in progress
 - Implemented in snapshot: bounded streaming CSV/flat JSON, exact schema, restricted YAML policy AST. Initial CI passed (31 tests).
-- Added malformed input, limits, duplicate keys, policy rejection and formula prefix tests. Remaining: atomic file publication, parser advisory scanning, more encoding and fuzz tests, XML.
+- Added malformed input, limits, duplicate keys, policy rejection and formula prefix tests. Added standalone CLI with private staging and atomic no-overwrite hard-link publication; CI pending. Remaining: reusable file publication API, parser advisory scanning, more encoding and fuzz tests, XML.
 
 ## M3 — JDBC, read-only preview in progress
 - First slice: PostgreSQL-only counts report, SELECT-only role check, read-only transaction, schema and type validation, bounded rows/values; no target writes. Unit CI passed (40 reactor tests).
@@ -16,7 +16,7 @@
 - PostgreSQL first; then evaluate MySQL and other engines. Added a mandatory CI Testcontainers suite for actual PostgreSQL privileges, read-only transactions, source invariance and rejection paths. Integration CI passed (40 unit + 10 real PostgreSQL tests). Added experimental single-table INSERT-only export with strict target checks and rollback; CI passed (57 total, 17 PostgreSQL tests). Added ordered multi-table export in one transaction with restricted target FK checks, global row budget and repeatable-read snapshot. CI passed (63 total, 23 real PostgreSQL tests). Automatic planning remains.
 
 ## M4 — Java and Spring
-- Added explicit annotation-driven public flat record masking with immutable copies, keyed and unkeyed strategies, and fail-closed validation. CI passed (80 total, 23 PostgreSQL integration tests). Added opt-in Spring Boot 4.0.9 starter with external key provider, startup validation and application bean override. CI passed (91 tests total). Added explicit Spring Batch 6.0.6 map and record processors with sanitized failure and deterministic reprocessing tests. Processor CI passed (99 total tests). Added actual Spring Batch JDBC job tests for chunk commit, rollback and restart with H2, CI pending. Wider restart/partitioning compatibility, nested transformations, Java beans and Spring version matrix remain.
+- Added explicit annotation-driven public flat record masking with immutable copies, keyed and unkeyed strategies, and fail-closed validation. CI passed (80 total, 23 PostgreSQL integration tests). Added opt-in Spring Boot 4.0.9 starter with external key provider, startup validation and application bean override. CI passed (91 tests total). Added explicit Spring Batch 6.0.6 map and record processors with sanitized failure and deterministic reprocessing tests. Processor CI passed (99 total tests). Added actual Spring Batch JDBC job tests for chunk commit, rollback and restart with H2, CI passed (101 total tests). Wider restart/partitioning compatibility, nested transformations, Java beans and Spring version matrix remain.
 - Independent consumers, version matrix and no framework dependency in core.
 
 ## M5 — Synthetic data and operational hardening
