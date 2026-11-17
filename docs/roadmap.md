@@ -6,10 +6,11 @@
 - Improve API documentation and coverage; add reviewed resource limits and structured error taxonomy where useful.
 
 ## M2 — Structured data, implementation in progress
-- Implemented in snapshot: bounded streaming CSV/flat JSON, exact schema, restricted YAML policy AST. CI sign-off pending.
+- Implemented in snapshot: bounded streaming CSV/flat JSON, exact schema, restricted YAML policy AST. Initial CI passed (31 tests).
 - Added malformed input, limits, duplicate keys, policy rejection and formula prefix tests. Remaining: atomic file publication, parser advisory scanning, more encoding and fuzz tests, XML.
 
-## M3 — JDBC
+## M3 — JDBC, read-only preview in progress
+- First slice: PostgreSQL-only counts report, SELECT-only role check, read-only transaction, schema and type validation, bounded rows/values; no target writes. CI pending.
 - Separate source and target connections, source read-only credentials, no updates to source.
 - Explicit allowed destinations, dry run, fail closed on unmatched columns, PK/FK/unique/null semantics.
 - PostgreSQL first; then evaluate MySQL and other engines. Validate actual database permissions, migrations and rollback/isolation with Testcontainers.

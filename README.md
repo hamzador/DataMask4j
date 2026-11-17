@@ -2,7 +2,7 @@
 
 **Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
 
-DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. Spring Boot, Spring Batch, JDBC and XML are planned.
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. A PostgreSQL read-only JDBC preview is in development. Spring Boot, Spring Batch, database export and XML are planned.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -33,6 +33,126 @@ DataMask4j is a technical building block, **not a GDPR certification, legal opin
 
 References: [GDPR official text](https://eur-lex.europa.eu/eli/reg/2016/679/oj), [CNIL anonymisation guidance](https://www.cnil.fr/fr/lanonymisation-de-donnees-personnelles).
 
+## How DataMask4j works
+
+The diagrams below show the implemented local masking flow and the planned database export boundary. GitHub renders Mermaid directly; the surrounding text also explains the architecture for search engines and readers without diagram support.
+
+### PostgreSQL data masking dry run (development snapshot)
+
+The optional `datamask4j-jdbc` module validates and masks rows in memory without returning records or writing to a target. The only result is a counts-only report. Use a dedicated SELECT-only PostgreSQL role and a separately configured datasource. The implementation checks the actual database name, PostgreSQL read-only transaction state and write privileges on the selected table. It accepts an ordinary table with text/varchar columns and strict lowercase identifiers. Views, RLS tables, partitions and unsupported column types are rejected.
+
+```xml
+<dependency>
+    <groupId>io.github.hador</groupId>
+    <artifactId>datamask4j-jdbc</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+</dependency>
+```
+
+```java
+import io.github.hador.datamask4j.core.*;
+import io.github.hador.datamask4j.jdbc.*;
+
+var policy = MaskingPolicy.builder()
+    .field("id", FieldRule.keep())
+    .field("email", FieldRule.redact())
+    .field("notes", FieldRule.drop())
+    .build();
+
+var report = new JdbcMasker(new DataMasker(policy)).dryRun(
+    sourceDataSource,
+    new JdbcTable("customer_db", "public", "customer")
+);
+// report.rowsProcessed(), report.sourceColumns(), report.outputColumns()
+```
+
+The source datasource is supplied by your application; the PostgreSQL driver is not a runtime dependency of this module. The preview requires a fresh auto-commit connection, switches to a read-only transaction and rolls back on exit. The connection is owned and closed by the module. Default bounds are 100,000 rows, 128 columns, 65,536 UTF-16 code units per value, fetch size 100 and query timeout 30 seconds. These are not a server memory or wall-clock guarantee. Use trustworthy providers and separately enforced database permissions, network restrictions and connection timeouts. Custom strategies must not create side effects. No database export or target-constraint validation is implemented yet.
+
+## Architecture: small core, optional adapters
+
+```mermaid
+flowchart LR
+    A[Java string maps] --> C[Core masking engine]
+    B[CSV and flat JSON] --> F[File adapters]
+    F --> C
+    Y[Strict YAML policy] --> C
+    K[External secret key] --> H[Crypto HMAC strategy]
+    H --> C
+    C --> O[Masked records]
+    J[PostgreSQL read-only preview] --> C
+    C --> R[Counts-only JDBC report]
+```
+
+### Field policy: fail closed
+
+```mermaid
+flowchart TD
+    A[Input record] --> B{Exact policy field set?}
+    B -->|No| X[Reject with generic error]
+    B -->|Yes| C{Rule for each field}
+    C -->|DROP| D[Omit field]
+    C -->|KEEP| E[Retain intentionally]
+    C -->|REDACT or CONSTANT| F[Replace value]
+    C -->|HMAC| G[Scoped pseudonym]
+    D --> H[Immutable masked record]
+    E --> H
+    F --> H
+    G --> H
+```
+
+### Deterministic identity across datasets
+
+```mermaid
+flowchart LR
+    A[Customer ID C-42] --> H[HMAC with shared key and scope]
+    B[Order customer ID C-42] --> H
+    H --> C[Same versioned pseudonym]
+    D[Different scope] --> E[Different pseudonym]
+```
+
+Equality preservation is useful for joins but is not a guarantee of anonymity or referential integrity. Keep keys separate from masked datasets.
+
+### Streaming file masking
+
+```mermaid
+sequenceDiagram
+    participant App as Application
+    participant File as CSV or JSON adapter
+    participant Core as Masking engine
+    participant Stage as Staging output
+    App->>File: Input and explicit policy
+    loop Each bounded record
+        File->>Core: Validate and mask
+        Core-->>File: Masked record
+        File->>Stage: Write masked record
+    end
+    alt All records succeed
+        File-->>App: Processed count
+    else Any failure
+        File-->>App: Sanitised error
+        Note over App,Stage: Caller discards entire partial output
+    end
+```
+
+### Database trust boundary (preview implemented, export planned)
+
+```mermaid
+flowchart LR
+    subgraph Source[Source database]
+        S[PostgreSQL table]
+    end
+    subgraph Worker[Isolated masking worker]
+        P[SELECT-only transaction]
+        M[Strict field policy]
+        R[Counts-only dry-run report]
+        P --> M --> R
+    end
+    S -->|Read only| P
+    M -. Future transactional export .-> T[Separate non-production database]
+```
+
+The initial JDBC implementation only performs a read-only dry run. It cannot insert, update or delete database rows. Transactional exports, target validation and relational consistency are later milestones.
+
 ## Design principles
 
 - Local execution: no telemetry, remote masking service or network access in the core.
@@ -53,10 +173,11 @@ References: [GDPR official text](https://eur-lex.europa.eu/eli/reg/2016/679/oj),
 | Keep, drop, constant replacement, redaction | Initial milestone |
 | HMAC-SHA-256 pseudonymisation, domain separation | Initial milestone |
 | Immutable output, null preservation | Initial milestone |
-| CSV and flat JSON adapters | Implemented (snapshot; CI validation pending) |
+| CSV and flat JSON adapters | Implemented (snapshot; initial CI passed) |
 | XML adapter | Planned |
 | Java bean/record annotations | Planned |
-| Restricted YAML policy loading | Implemented (snapshot; CI validation pending) |
+| Restricted YAML policy loading | Implemented (snapshot; initial CI passed) |
+| PostgreSQL JDBC read-only dry run | Implemented in snapshot; CI pending |
 | JDBC export and relational consistency | Planned |
 | Spring Boot / Spring Batch integrations | Planned |
 | Dry-run, safe reports, key rotation and faker adapters | Planned |
@@ -284,6 +405,7 @@ DataMask4j
 ├── datamask4j-core       # policy, field rules, masking engine
 ├── datamask4j-crypto     # scoped HMAC pseudonymisation
 ├── datamask4j-file       # CSV, JSON and YAML policies
+├── datamask4j-jdbc       # PostgreSQL read-only preview
 ├── docs/                # threat model and roadmap
 └── .github/workflows/   # build and tests
 ```
@@ -342,7 +464,7 @@ It provides masking and pseudonymisation primitives. It does not certify GDPR co
 
 ### Does it support Spring Boot, Spring Batch, PostgreSQL or database masking?
 
-Not yet. The snapshot has a standalone Java engine and CSV/JSON adapters with YAML policies. JDBC, Spring Boot and Spring Batch integration are roadmap items. The core has no framework dependency.
+Not yet. The snapshot has a standalone Java engine and CSV/JSON adapters with YAML policies. PostgreSQL read-only preview is in development; database exports, Spring Boot and Spring Batch integrations remain roadmap items. The core has no framework dependency.
 
 ### Is DataMask4j available on Maven Central?
 

@@ -25,5 +25,10 @@ Use distinct random keys per purpose/environment, retain keys separately, restri
 - Input/output size limits count UTF-16 code units; parser allocations and caller-supplied transformation memory are not fully bounded. Policy AST parsing has independent limits.
 - The optional file module introduces external parser dependencies. Review transitive dependencies, advisories and parser misuse cases before release.
 
+## JDBC preview
+- The initial module obtains a fresh connection, checks PostgreSQL, sets a read-only transaction, checks database identity and direct table/column write grants, accepts only ordinary non-RLS non-partition tables and returns counts. It issues no DML or DDL.
+- Database permissions, network isolation, datasource trust, resource limits and custom strategy safety are caller responsibilities. A database marked read-only is not proof of least privilege everywhere. Avoid superuser and shared production credentials.
+- Only text/varchar columns are supported; row/value caps are checked after driver allocation. Counts may themselves be sensitive. No export or automatic relational integrity validation is implemented.
+
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.
