@@ -182,7 +182,8 @@ JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT
 | Single-table transactional PostgreSQL export | Initial CI passed (57 tests total) |
 | Ordered multi-table export with restricted target foreign keys | Initial CI passed (63 tests total) |
 | Spring Boot opt-in RecordMasker starter | CI passed (91 reactor tests) |
-| Spring Batch 6 explicit item processors | Implemented in snapshot; CI pending |
+| Spring Batch 6 explicit item processors | CI passed (99 total tests) |
+| Spring Batch JDBC chunk rollback and restart fixture | Integration tests added; CI pending |
 | European synthetic names and test-domain email (Java API) | Initial CI passed (71 tests total) |
 | Expanded faker formats and key rotation | Planned |
 
@@ -765,7 +766,24 @@ flowchart LR
     F --> B[Batch failure or rollback per configuration]
 ```
 
-Only the application owns transaction boundaries. No skip, retry or restart policy is registered by the module. A failed chunk must not be allowed to bypass masking; do not configure a fallback writer for original items. For deterministic reprocessing use the same reviewed policy, key and scope across retries and restarts; never reprocess already masked items as raw source. Custom strategies, record constructors and accessors must be pure and thread-safe when used concurrently. Readers, listeners, execution contexts, job parameters, writers and tracing are outside the masking boundary and must not retain or log raw data. A transactional writer and appropriate job repository are required for actual rollback and restart guarantees. The initial tests cover processors and deterministic reprocessing; full job restart and database rollback integration remain to be validated.
+Only the application owns transaction boundaries. No skip, retry or restart policy is registered by the module. A failed chunk must not be allowed to bypass masking; do not configure a fallback writer for original items. For deterministic reprocessing use the same reviewed policy, key and scope across retries and restarts; never reprocess already masked items as raw source. Custom strategies, record constructors and accessors must be pure and thread-safe when used concurrently. Readers, listeners, execution contexts, job parameters, writers and tracing are outside the masking boundary and must not retain or log raw data. A transactional writer and appropriate job repository are required for actual rollback and restart guarantees. Processor CI passed; the new JDBC job rollback/restart integration tests are pending CI validation.
+
+### Spring Batch transaction and restart integration tests
+
+The integration tests use a Spring Batch JDBC JobRepository, an isolated embedded H2 database and a transactional JDBC writer. Four synthetic customer records are processed in chunks of two. One scenario deliberately fails after a row is inserted in the second chunk. It checks that the failed chunk leaves no rows, the first chunk remains committed, and restart resumes at the saved reader position with the same HMAC key and policy. A separate successful-job scenario compares every output row to its expected masked value.
+
+```mermaid
+flowchart TD
+    A[Chunk 1: two masked items] --> B[Commit two rows]
+    B --> C[Chunk 2: insert third masked row]
+    C --> D[Inject test failure]
+    D --> E[Rollback second chunk]
+    E --> F[Restart with saved position]
+    F --> G[Reprocess items three and four]
+    G --> H[Commit and verify four unique masked rows]
+```
+
+Run with `mvn -B -ntp -pl datamask4j-spring-batch -am clean verify`. The tests use synthetic fixtures only, no external database or credentials. This is evidence for the specific synchronous JDBC job, reader and transaction manager configuration after CI validation; it does not guarantee restart safety for arbitrary readers, partitioning, distributed jobs, nontransactional destinations or key changes. Earlier committed chunks are not rolled back when a later chunk fails. Publish the complete dataset only after a successful job and review.
 
 ## Architecture
 

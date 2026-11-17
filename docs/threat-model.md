@@ -57,7 +57,7 @@ The real PostgreSQL integration suite checks SELECT-only and write-capable roles
 
 ## Spring Batch processor boundary
 - Explicit map and annotated record processors only; no automatic source fallback, null item filtering, reader/writer, job or transaction configuration. Generic failures omit custom causes. A fully dropped map emits an empty map.
-- Job metadata, listeners, readers and writers may retain or expose raw input independently. Applications must use isolated transactional destinations, safe metadata, reviewed policies and appropriate retry/skip handling. Stable keys and policies are required for deterministic reprocessing. Do not mask previous output again as raw input. Initial tests validate processor behavior, not full job restart/rollback.
+- Job metadata, listeners, readers and writers may retain or expose raw input independently. Applications must use isolated transactional destinations, safe metadata, reviewed policies and appropriate retry/skip handling. Stable keys and policies are required for deterministic reprocessing. Do not mask previous output again as raw input. Processor tests passed. The new H2 integration fixture exercises actual chunk rollback and JDBC JobRepository restart; validation pending. Earlier committed chunks remain committed; a failed job is not equivalent to rolling back the entire dataset. Arbitrary reader/writer or distributed restart guarantees are not provided.
 
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.
