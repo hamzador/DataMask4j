@@ -41,7 +41,7 @@ public final class JdbcMasker {
         }
     }
 
-    private void verifySource(Connection connection, JdbcTable table) throws SQLException {
+    void verifySource(Connection connection, JdbcTable table) throws SQLException {
         try (Statement statement = connection.createStatement()) {
             statement.setQueryTimeout(limits.queryTimeoutSeconds());
             statement.execute("SET TRANSACTION READ ONLY");
@@ -50,6 +50,10 @@ public final class JdbcMasker {
                 require(rows.next() && table.database().equals(rows.getString(1)) && "on".equals(rows.getString(2)));
             }
         }
+        verifySourceTable(connection, table);
+    }
+
+    void verifySourceTable(Connection connection, JdbcTable table) throws SQLException {
         String metadata = "SELECT c.relkind, c.relispartition, c.relrowsecurity, "
                 + "pg_catalog.has_table_privilege(current_user,c.oid,'INSERT,UPDATE,DELETE,TRUNCATE,TRIGGER') "
                 + "OR pg_catalog.has_any_column_privilege(current_user,c.oid,'INSERT,UPDATE') "
@@ -90,7 +94,7 @@ public final class JdbcMasker {
         }
     }
 
-    private List<String> columns(ResultSetMetaData metadata) throws SQLException {
+    List<String> columns(ResultSetMetaData metadata) throws SQLException {
         int count = metadata.getColumnCount();
         require(count > 0 && count <= limits.maxColumns());
         var fields = new ArrayList<String>(count);
@@ -104,7 +108,7 @@ public final class JdbcMasker {
         return fields;
     }
 
-    private void checkValue(String value) {
+    void checkValue(String value) {
         require(value == null || value.length() <= limits.maxValueChars());
     }
 

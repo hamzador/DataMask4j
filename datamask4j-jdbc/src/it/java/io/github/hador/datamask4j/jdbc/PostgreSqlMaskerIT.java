@@ -48,6 +48,26 @@ class PostgreSqlMaskerIT {
             statement.execute("GRANT SELECT ON ALL TABLES IN SCHEMA public TO mask_reader, mask_writer, mask_column_writer");
             statement.execute("GRANT UPDATE ON public.customer TO mask_writer");
             statement.execute("GRANT UPDATE(email) ON public.customer TO mask_column_writer");
+            statement.execute("CREATE ROLE dm_mask_writer LOGIN PASSWORD '" + TEST_PASSWORD + "'");
+            statement.execute("CREATE DATABASE dm_test_export");
+        }
+        createExportFixtures();
+    }
+
+    private static void createExportFixtures() throws SQLException {
+        try (var connection = targetAdmin().getConnection(); var statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE public.export_ok (email text)");
+            statement.execute("CREATE TABLE public.export_existing (email text)");
+            statement.execute("INSERT INTO public.export_existing VALUES ('already-present')");
+            statement.execute("CREATE TABLE public.export_rollback (email text NOT NULL)");
+            statement.execute("CREATE TABLE public.export_extra (email text, extra text)");
+            statement.execute("CREATE TABLE public.export_default (email text DEFAULT 'unexpected')");
+            statement.execute("CREATE TABLE public.export_wrong_type (email integer)");
+            statement.execute("CREATE TABLE public.export_excess_privileges (email text)");
+            statement.execute("CREATE TABLE public.export_bound (email text)");
+            statement.execute("GRANT USAGE ON SCHEMA public TO dm_mask_writer");
+            statement.execute("GRANT SELECT, INSERT ON ALL TABLES IN SCHEMA public TO dm_mask_writer");
+            statement.execute("GRANT DELETE ON public.export_excess_privileges TO dm_mask_writer");
         }
     }
 
@@ -74,6 +94,108 @@ class PostgreSqlMaskerIT {
         source.setPassword(password);
         source.setConnectTimeout(10);
         return source;
+    }
+
+    private static DataSource targetAdmin() {
+        return targetDatasource(POSTGRES.getUsername(), POSTGRES.getPassword());
+    }
+
+    private static DataSource targetWriter() {
+        return targetDatasource("dm_mask_writer", TEST_PASSWORD);
+    }
+
+    private static DataSource targetDatasource(String user, String password) {
+        var source = (PGSimpleDataSource) datasource(user, password);
+        source.setDatabaseName("dm_test_export");
+        return source;
+    }
+
+    private static JdbcExportTarget target(String name) {
+        return new JdbcExportTarget(new JdbcTable("dm_test_export", "public", name), "dm_mask_writer");
+    }
+
+    private static JdbcExporter exporter() {
+        return new JdbcExporter(new DataMasker(MaskingPolicy.builder()
+                .field("email", FieldRule.redact()).field("notes", FieldRule.drop()).build()));
+    }
+
+    private static long targetCount(String name) throws SQLException {
+        try (var connection = targetAdmin().getConnection(); var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT count(*) FROM public." + JdbcTable.identifier(name))) {
+            assertTrue(rows.next());
+            return rows.getLong(1);
+        }
+    }
+
+    @Test
+    void shouldExportOnlyMaskedColumnsAndPreserveNull() throws SQLException {
+        assertEquals(new JdbcMaskingReport(2, 2, 1),
+                exporter().export(reader(), CUSTOMER, targetWriter(), target("export_ok")));
+        try (var connection = targetAdmin().getConnection(); var statement = connection.createStatement();
+             var rows = statement.executeQuery("SELECT email FROM public.export_ok ORDER BY email NULLS LAST")) {
+            assertTrue(rows.next());
+            assertEquals("[REDACTED]", rows.getString(1));
+            assertTrue(rows.next());
+            assertNull(rows.getString(1));
+            assertFalse(rows.next());
+        }
+        assertEquals(new JdbcMaskingReport(2, 2, 1), masker.dryRun(reader(), CUSTOMER));
+    }
+
+    @Test
+    void shouldRejectNonEmptyTargetWithoutOverwriting() throws SQLException {
+        assertThrows(JdbcMaskingException.class, () ->
+                exporter().export(reader(), CUSTOMER, targetWriter(), target("export_existing")));
+        assertEquals(1, targetCount("export_existing"));
+    }
+
+    @Test
+    void shouldRollbackWhenTargetConstraintFails() throws SQLException {
+        assertThrows(JdbcMaskingException.class, () ->
+                exporter().export(reader(), CUSTOMER, targetWriter(), target("export_rollback")));
+        assertEquals(0, targetCount("export_rollback"));
+    }
+
+    @Test
+    void shouldRollbackAfterFirstInsertWhenRowBoundIsExceeded() throws SQLException {
+        var bounded = new JdbcExporter(new DataMasker(MaskingPolicy.builder()
+                .field("email", FieldRule.redact()).field("notes", FieldRule.drop()).build()),
+                new JdbcMaskingLimits(1, 2, 100, 1, 5));
+        assertThrows(JdbcMaskingException.class, () ->
+                bounded.export(reader(), CUSTOMER, targetWriter(), target("export_bound")));
+        assertEquals(0, targetCount("export_bound"));
+    }
+
+    @Test
+    void shouldRejectUnexpectedTargetSchemaAndDefaults() throws SQLException {
+        for (String name : new String[]{"export_extra", "export_default", "export_wrong_type"}) {
+            assertThrows(JdbcMaskingException.class, () ->
+                    exporter().export(reader(), CUSTOMER, targetWriter(), target(name)));
+            assertEquals(0, targetCount(name));
+        }
+    }
+
+    @Test
+    void shouldRejectPrivilegedTargetRoleAndWrongDatabase() throws SQLException {
+        assertThrows(JdbcMaskingException.class, () ->
+                exporter().export(reader(), CUSTOMER, targetWriter(), target("export_excess_privileges")));
+        assertThrows(JdbcMaskingException.class, () ->
+                exporter().export(reader(), CUSTOMER, targetAdmin(), target("export_bound")));
+        assertThrows(JdbcMaskingException.class, () ->
+                exporter().export(reader(), CUSTOMER, reader(), target("export_bound")));
+        assertEquals(0, targetCount("export_bound"));
+        assertEquals(0, targetCount("export_excess_privileges"));
+    }
+
+    @Test
+    void shouldRejectSameDatabaseAndUnapprovedTargetName() {
+        assertThrows(IllegalArgumentException.class, () -> new JdbcExportTarget(CUSTOMER, "dm_mask_writer"));
+        assertThrows(JdbcMaskingException.class, () ->
+                exporter().export(targetWriter(), target("export_bound").table(),
+                        targetWriter(), target("export_bound")));
+        var sameDatasource = reader();
+        assertThrows(JdbcMaskingException.class, () ->
+                exporter().export(sameDatasource, CUSTOMER, sameDatasource, target("export_bound")));
     }
 
     private static JdbcTable table(String name) {

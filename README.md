@@ -2,7 +2,7 @@
 
 **Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
 
-DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. A PostgreSQL read-only JDBC preview is in development. Spring Boot, Spring Batch, database export and XML are planned.
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental single-table transactional export are available in the development snapshot. Spring Boot, Spring Batch, multi-table export and XML are planned.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
@@ -66,7 +66,7 @@ var report = new JdbcMasker(new DataMasker(policy)).dryRun(
 // report.rowsProcessed(), report.sourceColumns(), report.outputColumns()
 ```
 
-The source datasource is supplied by your application; the PostgreSQL driver is not a runtime dependency of this module. The preview requires a fresh auto-commit connection, switches to a read-only transaction and rolls back on exit. The connection is owned and closed by the module. Default bounds are 100,000 rows, 128 columns, 65,536 UTF-16 code units per value, fetch size 100 and query timeout 30 seconds. These are not a server memory or wall-clock guarantee. Use trustworthy providers and separately enforced database permissions, network restrictions and connection timeouts. Custom strategies must not create side effects. No database export or target-constraint validation is implemented yet.
+The source datasource is supplied by your application; the PostgreSQL driver is not a runtime dependency of this module. The preview requires a fresh auto-commit connection, switches to a read-only transaction and rolls back on exit. The connection is owned and closed by the module. Default bounds are 100,000 rows, 128 columns, 65,536 UTF-16 code units per value, fetch size 100 and query timeout 30 seconds. These are not a server memory or wall-clock guarantee. Use trustworthy providers and separately enforced database permissions, network restrictions and connection timeouts. Custom strategies must not create side effects. Use the separate experimental JdbcExporter for restricted single-table export; dryRun itself never writes.
 
 ## Architecture: small core, optional adapters
 
@@ -134,7 +134,7 @@ sequenceDiagram
     end
 ```
 
-### Database trust boundary (preview implemented, export planned)
+### Database trust boundary (preview and experimental export)
 
 ```mermaid
 flowchart LR
@@ -148,10 +148,10 @@ flowchart LR
         P --> M --> R
     end
     S -->|Read only| P
-    M -. Future transactional export .-> T[Separate non-production database]
+    M -. Restricted transactional export .-> T[Separate non-production database]
 ```
 
-The initial JDBC implementation only performs a read-only dry run. It cannot insert, update or delete database rows. Transactional exports, target validation and relational consistency are later milestones.
+JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT-only transactions into an empty test table. Multi-table relational consistency remains a later milestone.
 
 ## Design principles
 
@@ -177,8 +177,9 @@ The initial JDBC implementation only performs a read-only dry run. It cannot ins
 | XML adapter | Planned |
 | Java bean/record annotations | Planned |
 | Restricted YAML policy loading | Implemented (snapshot; initial CI passed) |
-| PostgreSQL JDBC read-only dry run | Unit CI passed (40 reactor tests); real PostgreSQL validation pending |
-| JDBC export and relational consistency | Planned |
+| PostgreSQL JDBC read-only dry run | Unit and real PostgreSQL CI passed (50 reactor tests) |
+| Single-table transactional PostgreSQL export | Experimental implementation; CI pending |
+| Multi-table relational consistency | Planned |
 | Spring Boot / Spring Batch integrations | Planned |
 | Dry-run, safe reports, key rotation and faker adapters | Planned |
 
@@ -398,6 +399,63 @@ CSV validates the full header even for empty datasets, prohibits duplicate colum
 
 **Streaming is not transactional.** On any exception, discard the entire output, even if some records were already written. For files, use a new restricted-permission staging destination and publish only after successful masking and verification. Never write over the source or use a production destination. No atomic file move or database protection is implemented yet.
 
+## Transactional PostgreSQL test-data export (experimental snapshot)
+
+The JDBC exporter supports one ordinary table at a time. It never creates, updates, deletes, truncates or overwrites tables. A SELECT-only source and a distinct, empty target table must be provisioned by the operator. Target database names must start with `dm_test_`; this naming convention is a guard, **not proof that the database is safe or non-production**. The actual database name and expected non-privileged writer role are verified. Use a separate isolated cluster/network in real deployments.
+
+```java
+var policy = MaskingPolicy.builder()
+    .field("email", FieldRule.redact())
+    .field("notes", FieldRule.drop())
+    .build();
+
+var exporter = new JdbcExporter(new DataMasker(policy));
+var report = exporter.export(
+    sourceDataSource,
+    new JdbcTable("customer_db", "public", "customer"),
+    testDataSource,
+    new JdbcExportTarget(
+        new JdbcTable("dm_test_customers", "public", "customer_masked"),
+        "dm_mask_writer"
+    )
+);
+```
+
+Example target provisioning, to be executed by an authorised administrator **on the isolated test instance only** (credentials supplied by a secret manager):
+
+```sql
+CREATE TABLE public.customer_masked (email text);
+GRANT USAGE ON SCHEMA public TO dm_mask_writer;
+GRANT SELECT, INSERT ON public.customer_masked TO dm_mask_writer;
+```
+
+The writer role must already exist, must not own the table, and must not have UPDATE, DELETE, TRUNCATE, TRIGGER or REFERENCES on it. The source role remains SELECT-only. The destination must have exactly the retained text/varchar columns, with no generated fields, defaults, triggers, rules, inheritance, RLS, expression/partial indexes or unsupported constraints. PK, UNIQUE and NOT NULL constraints are enforced by PostgreSQL. Foreign keys, multi-table atomicity and relational planning are not supported yet.
+
+```mermaid
+sequenceDiagram
+    participant S as Source PostgreSQL
+    participant E as JDBC exporter
+    participant T as Isolated test PostgreSQL
+    E->>T: Verify target identity, role and serializable transaction
+    E->>S: Start read-only transaction
+    E->>S: Verify source grants and schema
+    E->>T: Verify empty target and exact columns
+    loop Each bounded row
+        S-->>E: Source row
+        Note over E: Apply explicit masking policy
+        E->>T: Parameterized INSERT of masked values
+    end
+    alt All rows succeed
+        E->>S: Rollback read-only transaction and close
+        E->>T: Commit target
+    else Any error before commit
+        E->>S: Rollback and close
+        E->>T: Rollback target
+    end
+```
+
+The target transaction uses SERIALIZABLE isolation, and no automatic retry is performed. A connection failure around commit can leave the outcome unknown: inspect the target before retrying. This initial API assumes trusted database administration, stable schemas and no concurrent privileged DDL or external writes; it does not sandbox custom strategies, database extensions or administrative functions. Use isolated disposable targets, a reviewed policy, least privilege, and do not send output to a test system that is allowed to access production or its keys. No raw values are included in library-generated errors or reports.
+
 ## Architecture
 
 ```text
@@ -421,7 +479,7 @@ The engine is an in-process trusted API, not a sandbox. It handles string maps a
 - Treat retained values, stable pseudonyms and sensitive combinations of attributes as potentially personal data.
 - The engine throws before returning on invalid schema or failed transformation. This is not a transactional rollback of custom strategy side effects.
 - Review allowed output fields and downstream destinations. Masking can break application validation, column lengths or uniqueness.
-- Atomic file publication, database exports, tenant isolation, key lifecycle and reidentification tests are separate milestones.
+- Atomic file publication, multi-table database exports, tenant isolation, key lifecycle and reidentification tests are separate milestones.
 
 See [threat model](docs/threat-model.md) and [security policy](SECURITY.md).
 
@@ -489,7 +547,7 @@ It provides masking and pseudonymisation primitives. It does not certify GDPR co
 
 ### Does it support Spring Boot, Spring Batch, PostgreSQL or database masking?
 
-Not yet. The snapshot has a standalone Java engine and CSV/JSON adapters with YAML policies. PostgreSQL read-only preview is in development; database exports, Spring Boot and Spring Batch integrations remain roadmap items. The core has no framework dependency.
+Not yet. The snapshot has a standalone Java engine and CSV/JSON adapters with YAML policies. PostgreSQL read-only preview has passed real integration tests; single-table export is experimental. Multi-table export, Spring Boot and Spring Batch integrations remain roadmap items. The core has no framework dependency.
 
 ### Is DataMask4j available on Maven Central?
 
