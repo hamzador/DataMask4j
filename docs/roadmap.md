@@ -16,7 +16,7 @@
 - PostgreSQL first; then evaluate MySQL and other engines. Added a mandatory CI Testcontainers suite for actual PostgreSQL privileges, read-only transactions, source invariance and rejection paths. Integration CI passed (40 unit + 10 real PostgreSQL tests). Added experimental single-table INSERT-only export with strict target checks and rollback; CI passed (57 total, 17 PostgreSQL tests). Added ordered multi-table export in one transaction with restricted target FK checks, global row budget and repeatable-read snapshot. CI passed (63 total, 23 real PostgreSQL tests). Automatic planning remains.
 
 ## M4 — Java and Spring
-- Added explicit annotation-driven public flat record masking with immutable copies, keyed and unkeyed strategies, and fail-closed validation. CI pending. Nested transformations, Java beans, Spring Boot starter and Spring Batch adapters remain.
+- Added explicit annotation-driven public flat record masking with immutable copies, keyed and unkeyed strategies, and fail-closed validation. CI passed (80 total, 23 PostgreSQL integration tests). Added opt-in Spring Boot 4.0.9 starter with external key provider, startup validation and application bean override. CI pending. Nested transformations, Java beans, Spring Batch adapters and Spring compatibility matrix remain.
 - Independent consumers, version matrix and no framework dependency in core.
 
 ## M5 — Synthetic data and operational hardening

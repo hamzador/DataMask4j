@@ -50,5 +50,10 @@ The real PostgreSQL integration suite checks SELECT-only and write-capable roles
 - Public flat records only; all components explicitly classified before reading any values, with scalar KEEP and String-only transformations. No accessibility override or implicit nested traversal. NULLIFY retains the field shape; it does not remove the field.
 - Record accessors and canonical constructors are trusted and may perform side effects or rewrite masked values; use simple reviewed DTOs. Generic failures omit causes; the API cannot undo user code side effects. Keys are defensively copied but JVM memory erasure is not guaranteed. Annotation literals are visible in compiled classes and must not contain secrets.
 
+## Spring Boot integration
+- Auto-configuration is disabled by default, creates only an explicit RecordMasker bean and never automatically masks application traffic or starts a job. The application can override the bean; that override owns its security decisions.
+- External MaskingKeyProvider supplies a fresh transferred key array; the starter validates length and clears it after defensive copying. Missing required, invalid and ambiguous providers fail startup. No key configuration property, fallback hardcoded key or key-generation service. Provider invocation errors are sanitized; Spring/application initialization and logging remain outside the masking boundary.
+- Explicit key-optional mode permits unkeyed masks without a provider; keyed record policies still fail when invoked. JVM copies may remain. No rotation, secret-store client, actuator or native-image support; no automatic database export.
+
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.

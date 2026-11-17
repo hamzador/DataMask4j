@@ -1,0 +1,16 @@
+{
+  "properties": [
+    {
+      "name": "datamask4j.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Explicitly enable the RecordMasker auto-configuration.",
+      "defaultValue": false
+    },
+    {
+      "name": "datamask4j.key-required",
+      "type": "java.lang.Boolean",
+      "description": "Require a MaskingKeyProvider bean when the starter creates a RecordMasker. Disable only for unkeyed strategies.",
+      "defaultValue": true
+    }
+  ]
+}

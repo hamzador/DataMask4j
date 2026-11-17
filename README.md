@@ -2,14 +2,14 @@
 
 **Open-source Java data masking library for privacy-first test data management, GDPR-oriented pseudonymisation and sensitive data protection.**
 
-DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. European locale-aware synthetic names and test-domain email substitution are implemented; annotation-driven masking of public flat Java records is in development. Spring Boot, Spring Batch, automatic relational planning and XML are planned.
+DataMask4j masks Java records represented as string maps locally, with explicit field policies and deterministic HMAC-SHA-256 tokens. It is designed for Java teams building safer development, QA and staging datasets. CSV and flat JSON adapters and restricted YAML policy loading are present in the development snapshot. PostgreSQL read-only preview and an experimental ordered transactional export are available in the development snapshot. European locale-aware synthetic names and test-domain email substitution are implemented; annotation-driven masking of public flat Java records is in development. An opt-in Spring Boot starter is in development; Spring Batch, automatic relational planning and XML are planned.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 [![Java 21+](https://img.shields.io/badge/Java-21%2B-blue)](https://openjdk.org/projects/jdk/21/)
 [![Build and test](https://github.com/hamzador/DataMask4j/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzador/DataMask4j/actions/workflows/ci.yml)
 
-> Early development (0.1.0-SNAPSHOT). The first milestone is a small, deterministic, in-process masking engine. Nothing has been published to Maven Central. Database, Spring, XML and automated anonymization capabilities are not available yet.
+> Early development (0.1.0-SNAPSHOT). Nothing has been published to Maven Central. The current snapshot includes local masking, restricted PostgreSQL export, locale-aware fixtures, annotations and an opt-in Spring Boot starter. It is not production-certified. Spring Batch, XML and automated anonymization are not available.
 
 ## Why DataMask4j?
 
@@ -175,13 +175,14 @@ JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT
 | Immutable output, null preservation | Initial milestone |
 | CSV and flat JSON adapters | Implemented (snapshot; initial CI passed) |
 | XML adapter | Planned |
-| Explicit public flat Java record annotations | Implemented in snapshot; CI pending |
+| Explicit public flat Java record annotations | CI passed (80 reactor tests) |
 | Nested records / Java beans | Planned |
 | Restricted YAML policy loading | Implemented (snapshot; initial CI passed) |
 | PostgreSQL JDBC read-only dry run | Unit and real PostgreSQL CI passed (50 reactor tests) |
 | Single-table transactional PostgreSQL export | Initial CI passed (57 tests total) |
 | Ordered multi-table export with restricted target foreign keys | Initial CI passed (63 tests total) |
-| Spring Boot / Spring Batch integrations | Planned |
+| Spring Boot opt-in RecordMasker starter | Implemented in snapshot; CI pending |
+| Spring Batch integration | Planned |
 | European synthetic names and test-domain email (Java API) | Initial CI passed (71 tests total) |
 | Expanded faker formats and key rotation | Planned |
 
@@ -633,6 +634,83 @@ A record has a fixed shape, so DROP is deliberately unavailable: use NULLIFY for
 
 For unkeyed policies use `new RecordMasker()`. Keyed strategies require an externally supplied key and explicit nonblank scope; the faker scope prefix is reserved. Keep keys and sensitive values out of annotation literals. The default faker locale is fr-FR; nondefault locales are only allowed with faker strategies. Name components generated from separate inputs are not automatically coherent. Record accessors and canonical constructors are trusted application code: they must not log, mutate, perform I/O or undo transformations. Constructors may reject nulls or transformed values; failures are sanitized, and no result is returned. This API cannot undo application-side effects or guarantee anonymity.
 
+## Spring Boot data masking starter (development snapshot)
+
+Use the optional starter to inject an explicitly enabled `RecordMasker` into a Spring Boot application. The initial baseline is Java 21 and Spring Boot 4.0.9. Other Spring Boot versions, native images and reactive/servlet integrations are not yet validated.
+
+```xml
+<dependency>
+    <groupId>io.github.hador</groupId>
+    <artifactId>datamask4j-spring-boot-starter</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+</dependency>
+```
+
+```yaml
+datamask4j:
+  enabled: true
+  key-required: true
+```
+
+The starter is disabled by default. When enabled, a key provider is required unless `key-required: false` is explicitly selected. The starter does not receive a key through Spring configuration properties. Provide a secret-manager integration as an application bean. The returned key must be a fresh array that the starter owns and clears after copying; never return a shared backing array. Use a random key of at least 32 bytes.
+
+```java
+import io.github.hador.datamask4j.spring.MaskingKeyProvider;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration(proxyBeanMethods = false)
+public class MaskingConfiguration {
+    @Bean
+    MaskingKeyProvider maskingKeyProvider(ApprovedSecretStore secrets) {
+        // ApprovedSecretStore is your application-specific secret-manager adapter.
+        // readFreshKey must transfer an independent byte array to the starter.
+        return () -> secrets.readFreshKey("qa/customer-pseudonymisation");
+    }
+}
+```
+
+```java
+import io.github.hador.datamask4j.annotations.RecordMasker;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CustomerMaskingService {
+    private final RecordMasker masker;
+
+    public CustomerMaskingService(RecordMasker masker) {
+        this.masker = masker;
+    }
+
+    public Customer maskForTest(Customer source) {
+        return masker.mask(source);
+    }
+}
+```
+
+Here Customer is the annotated public record from the preceding example. No HTTP filter, serialization hook, AOP interception, scheduled job, data source or automatic export is registered. Masking is always an explicit application call. A custom application-defined RecordMasker takes precedence and is responsible for its own key and policy decisions.
+
+```mermaid
+flowchart TD
+    A[Spring Boot starts] --> B{datamask4j.enabled?}
+    B -->|False or absent| X[No auto-configured masker]
+    B -->|True| C{Application masker exists?}
+    C -->|Yes| D[Use application bean]
+    C -->|No| E{Key provider available?}
+    E -->|Yes| F[Load fresh key and validate length]
+    E -->|No| G{Key required?}
+    G -->|Yes| H[Fail startup]
+    G -->|No| I[Create unkeyed masker]
+    F --> J{Valid key?}
+    J -->|No| H
+    J -->|Yes| K[Create keyed masker and clear temporary key]
+    I --> L[Explicit service call]
+    K --> L
+    D --> L
+```
+
+For unkeyed REDACT, KEEP, CONSTANT and NULLIFY operations only, use `enabled: true` and `key-required: false`, with no provider bean. If a provider exists, its key is still validated and used. Missing required, invalid or ambiguous providers fail bean creation; provider invocation errors are sanitized without retaining their cause. Provider bean initialization outside this method is trusted application code. Spring can log its own configuration errors; do not put keys in configuration properties, exception text or logs. No key rotation, secret-manager client, automatic lifecycle erasure, actuator endpoint or database integration is supplied.
+
 ## Architecture
 
 ```text
@@ -641,6 +719,7 @@ DataMask4j
 ├── datamask4j-crypto     # scoped HMAC pseudonymisation
 ├── datamask4j-faker      # deterministic European fixture substitutions
 ├── datamask4j-annotations # immutable-copy masking for public Java records
+├── datamask4j-spring-boot-starter # opt-in RecordMasker auto-configuration
 ├── datamask4j-file       # CSV, JSON and YAML policies
 ├── datamask4j-jdbc       # PostgreSQL read-only preview
 ├── docs/                # threat model and roadmap
@@ -726,7 +805,7 @@ It provides masking and pseudonymisation primitives. It does not certify GDPR co
 
 ### Does it support Spring Boot, Spring Batch, PostgreSQL or database masking?
 
-Not yet. The snapshot has a standalone Java engine and CSV/JSON adapters with YAML policies. PostgreSQL read-only preview has passed real integration tests; single-table export has passed integration CI; ordered multi-table export is experimental. Automatic relational planning, Spring Boot and Spring Batch integrations remain roadmap items. The core has no framework dependency.
+Partially. The snapshot has a standalone Java engine, CSV/JSON adapters with YAML policies and an opt-in Spring Boot starter in development. PostgreSQL read-only preview has passed real integration tests; single-table export has passed integration CI; ordered multi-table export is experimental. Automatic relational planning and Spring Batch integration remain roadmap items; Spring Boot compatibility beyond the initial baseline is unverified. The core has no framework dependency.
 
 ### Is DataMask4j available on Maven Central?
 
