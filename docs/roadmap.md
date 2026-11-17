@@ -10,10 +10,10 @@
 - Added malformed input, limits, duplicate keys, policy rejection and formula prefix tests. Remaining: atomic file publication, parser advisory scanning, more encoding and fuzz tests, XML.
 
 ## M3 — JDBC, read-only preview in progress
-- First slice: PostgreSQL-only counts report, SELECT-only role check, read-only transaction, schema and type validation, bounded rows/values; no target writes. CI pending.
+- First slice: PostgreSQL-only counts report, SELECT-only role check, read-only transaction, schema and type validation, bounded rows/values; no target writes. Unit CI passed (40 reactor tests).
 - Separate source and target connections, source read-only credentials, no updates to source.
 - Explicit allowed destinations, dry run, fail closed on unmatched columns, PK/FK/unique/null semantics.
-- PostgreSQL first; then evaluate MySQL and other engines. Validate actual database permissions, migrations and rollback/isolation with Testcontainers.
+- PostgreSQL first; then evaluate MySQL and other engines. Added a mandatory CI Testcontainers suite for actual PostgreSQL privileges, read-only transactions, source invariance and rejection paths. Integration CI pending. Migrations, exports and target rollback remain to implement.
 
 ## M4 — Java and Spring
 - Java records/annotations, immutable copies, explicit nested transformations; Spring Boot starter and Spring Batch adapters.

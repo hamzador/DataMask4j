@@ -177,7 +177,7 @@ The initial JDBC implementation only performs a read-only dry run. It cannot ins
 | XML adapter | Planned |
 | Java bean/record annotations | Planned |
 | Restricted YAML policy loading | Implemented (snapshot; initial CI passed) |
-| PostgreSQL JDBC read-only dry run | Implemented in snapshot; CI pending |
+| PostgreSQL JDBC read-only dry run | Unit CI passed (40 reactor tests); real PostgreSQL validation pending |
 | JDBC export and relational consistency | Planned |
 | Spring Boot / Spring Batch integrations | Planned |
 | Dry-run, safe reports, key rotation and faker adapters | Planned |
@@ -437,6 +437,31 @@ See [threat model](docs/threat-model.md) and [security policy](SECURITY.md).
 | M6 — Release | SBOM, dependency and secret scans, signatures, documentation | independently reviewed 0.1.0 release candidate |
 
 Potential future features: safe database subsetting, EU locale-specific synthetic fixtures, detection assistance and risk assessment. No automatic publication or production compliance claim.
+
+## PostgreSQL integration testing
+
+The PostgreSQL test profile starts an isolated disposable database using Testcontainers. It creates synthetic records and dedicated SELECT-only and write-capable roles, never connects to production, and requires a working Docker daemon.
+
+```bash
+mvn -B -ntp -Ppostgres-integration clean verify
+```
+
+The default `mvn clean verify` runs unit tests without Docker; CI explicitly enables the integration profile and fails if no integration tests run. The suite checks actual PostgreSQL privilege enforcement, read-only transaction behaviour, correct database identity, unsupported tables/types, input bounds and unchanged source data.
+
+```mermaid
+flowchart TD
+    A[Unit tests] --> B[PostgreSQL Testcontainers]
+    B --> C[Create synthetic fixtures and roles]
+    C --> D[SELECT-only role succeeds]
+    C --> E[Write-capable roles rejected]
+    C --> F[Invalid schema and bounds rejected]
+    D --> G[Verify source remains unchanged]
+    E --> G
+    F --> G
+    G --> H[CI gate]
+```
+
+A passing integration suite is evidence for the tested cases only, not proof of production safety. The image is pinned by digest; full image and dependency vulnerability audits are still required before release.
 
 ## Testing and contributing
 
