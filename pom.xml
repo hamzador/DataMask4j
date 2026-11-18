@@ -239,7 +239,7 @@
                             <artifactId>commons-io</artifactId>
                             <version>${plugin.commons-io}</version>
                         </dependency>
-                    </dependencies></plugin>
+                    <dependency><groupId>org.codehaus.plexus</groupId><artifactId>plexus-utils</artifactId><version>${plugin.plexus-utils.v4}</version></dependency></dependencies></plugin>
 <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-surefire-plugin</artifactId><dependencies>
                         <dependency>
                             <groupId>commons-io</groupId>

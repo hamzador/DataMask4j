@@ -16,3 +16,7 @@ Only Maven plugin coordinates and new JAR paths are retained from Maven debug tr
 Core coverage and PIT mutation floors are raised to 100%, based on the last verified 56/56 lines and 28/28 mutants. Crypto remains at its previous measured floor: five surviving mutations relate to best-effort memory clearing, which cannot be reliably observed through the public Java API. No mutation exclusions or unsupported claims of memory erasure.
 
 Advisories: https://github.com/advisories/GHSA-78wr-2p64-hpwj, https://github.com/advisories/GHSA-j288-q9x7-2f5v, https://github.com/advisories/GHSA-6fmv-xxpf-w3cw, https://github.com/advisories/GHSA-8wh2-6qhj-h7j9.
+
+## Verified follow-up and blocking gate
+
+Run [44206114290](https://github.com/hamzador/DataMask4j/actions/runs/44206114290) passed all seven jobs, 114 distinct Java tests and five Python tests. Seven of the eight original inventory matches disappeared. The downloaded mutation job provenance shows `org.apache.maven.plugins:maven-enforcer-plugin:3.6.2` loaded `org.codehaus.plexus:plexus-utils:jar:4.0.2`; all other recorded versions in that trace were fixed. Add a direct build-plugin override to 4.0.3. The five isolated Maven inventory scans now fail on any OSV match, with no exclusions. Their clean results and the new independent consumer builds remain pending CI. The Maven distribution, JVM, and Testcontainers helper images are not covered by this inventory.

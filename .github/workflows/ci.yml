@@ -28,7 +28,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/datamask4j-m2"
           echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Build and test
-        run: python3 scripts/run_maven_ci.py -B -ntp clean verify
+        run: python3 scripts/run_maven_ci.py -B -ntp clean install
+      - name: Verify standalone consumer projects against installed artifacts
+        run: |
+          python3 scripts/run_maven_ci.py -B -ntp -f consumer-examples/core/pom.xml clean verify
+          python3 scripts/run_maven_ci.py -B -ntp -f consumer-examples/spring-boot/pom.xml clean verify
       - name: Smoke test standalone CLI
         shell: bash
         run: |
@@ -46,11 +50,11 @@ jobs:
         run: |
           python3 scripts/coverage_summary.py | tee -a "$GITHUB_STEP_SUMMARY"
           python3 scripts/quality_gate.py coverage | tee -a "$GITHUB_STEP_SUMMARY"
-      - name: Inventory resolved Maven build JARs and report known advisories
+      - name: Inventory resolved Maven build JARs and enforce OSV gate
         if: ${{ !cancelled() }}
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-verify.json
-          python3 scripts/audit_dependencies.py target/build-inventory-verify.json --output target/build-osv-verify.json --report-only
+          python3 scripts/audit_dependencies.py target/build-inventory-verify.json --output target/build-osv-verify.json
       - name: Collect filtered Maven provenance
         if: always()
         run: |
@@ -95,11 +99,11 @@ jobs:
         run: python3 scripts/run_maven_ci.py -B -ntp -pl datamask4j-core,datamask4j-crypto test-compile org.pitest:pitest-maven:1.30.2:mutationCoverage
       - name: Enforce mutation floors
         run: python3 scripts/quality_gate.py mutation
-      - name: Inventory resolved Maven build JARs and report known advisories
+      - name: Inventory resolved Maven build JARs and enforce OSV gate
         if: ${{ !cancelled() }}
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-mutation.json
-          python3 scripts/audit_dependencies.py target/build-inventory-mutation.json --output target/build-osv-mutation.json --report-only
+          python3 scripts/audit_dependencies.py target/build-inventory-mutation.json --output target/build-osv-mutation.json
       - name: Collect filtered Maven provenance
         if: always()
         run: |
@@ -142,11 +146,11 @@ jobs:
         run: python3 scripts/run_maven_ci.py -B -ntp -pl datamask4j-core,datamask4j-crypto,datamask4j-file,datamask4j-jdbc,datamask4j-faker,datamask4j-annotations,datamask4j-spring-boot-starter,datamask4j-spring-batch,datamask4j-cli com.github.spotbugs:spotbugs-maven-plugin:4.10.5.0:spotbugs -Dspotbugs.xmlOutput=true
       - name: Enforce zero SpotBugs findings
         run: python3 scripts/quality_gate.py spotbugs
-      - name: Inventory resolved Maven build JARs and report known advisories
+      - name: Inventory resolved Maven build JARs and enforce OSV gate
         if: ${{ !cancelled() }}
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-static-analysis.json
-          python3 scripts/audit_dependencies.py target/build-inventory-static-analysis.json --output target/build-osv-static-analysis.json --report-only
+          python3 scripts/audit_dependencies.py target/build-inventory-static-analysis.json --output target/build-osv-static-analysis.json
       - name: Collect filtered Maven provenance
         if: always()
         run: |
@@ -189,11 +193,11 @@ jobs:
         run: python3 scripts/run_maven_ci.py -B -ntp -Ppostgres-integration org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeAggregateBom -DincludeTestScope=true -DoutputReactorProjects=false -Dcyclonedx.skipNotDeployed=false -Dcyclonedx.skipAttach=true -DoutputFormat=json
       - name: OSV dependency gate
         run: python3 scripts/audit_dependencies.py target/bom.json --output target/osv-report.json
-      - name: Inventory resolved Maven build JARs and report known advisories
+      - name: Inventory resolved Maven build JARs and enforce OSV gate
         if: ${{ !cancelled() }}
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-dependency-audit.json
-          python3 scripts/audit_dependencies.py target/build-inventory-dependency-audit.json --output target/build-osv-dependency-audit.json --report-only
+          python3 scripts/audit_dependencies.py target/build-inventory-dependency-audit.json --output target/build-osv-dependency-audit.json
       - name: Collect filtered Maven provenance
         if: always()
         run: |
@@ -253,11 +257,11 @@ jobs:
       - name: Scan exact tested PostgreSQL image
         if: ${{ !cancelled() && steps.prepare-postgres.outcome == 'success' }}
         run: bash scripts/audit_postgres_image.sh
-      - name: Inventory resolved Maven build JARs and report known advisories
+      - name: Inventory resolved Maven build JARs and enforce OSV gate
         if: ${{ !cancelled() }}
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-image-audit.json
-          python3 scripts/audit_dependencies.py target/build-inventory-image-audit.json --output target/build-osv-image-audit.json --report-only
+          python3 scripts/audit_dependencies.py target/build-inventory-image-audit.json --output target/build-osv-image-audit.json
       - name: Collect filtered Maven provenance
         if: always()
         run: |
