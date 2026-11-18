@@ -104,6 +104,32 @@ class DataMaskerTest {
     }
 
     @Test
+    void shouldReturnRetainedFieldsInCallerOrderWithoutMutation() {
+        var fields = new java.util.ArrayList<>(java.util.List.of("notes", "email", "id", "name"));
+        var retained = masker.outputFields(fields);
+        assertEquals(java.util.List.of("email", "id", "name"), retained);
+        assertEquals(java.util.List.of("notes", "email", "id", "name"), fields);
+        assertThrows(UnsupportedOperationException.class, () -> retained.add("extra"));
+        fields.clear();
+        assertEquals(java.util.List.of("email", "id", "name"), retained);
+    }
+
+    @Test
+    void shouldRejectDuplicateMissingAndUnknownSchemaFields() {
+        assertThrows(MaskingException.class, () -> masker.outputFields(java.util.List.of("id", "name", "email", "notes", "id")));
+        assertThrows(MaskingException.class, () -> masker.outputFields(java.util.List.of("id", "name", "email")));
+        assertThrows(MaskingException.class, () -> masker.outputFields(java.util.List.of("id", "name", "email", "unknown")));
+        assertThrows(NullPointerException.class, () -> masker.outputFields(null));
+        assertThrows(NullPointerException.class, () -> masker.outputFields(java.util.Arrays.asList("id", null)));
+    }
+
+    @Test
+    void shouldReturnEmptySchemaWhenAllFieldsDropped() {
+        var drop = new DataMasker(MaskingPolicy.builder().field("id", FieldRule.drop()).build());
+        assertEquals(java.util.List.of(), drop.outputFields(java.util.List.of("id")));
+    }
+
+    @Test
     void shouldFreezePolicyWhenBuilt() {
         var builder = MaskingPolicy.builder().field("id", FieldRule.keep());
         var original = new DataMasker(builder.build());

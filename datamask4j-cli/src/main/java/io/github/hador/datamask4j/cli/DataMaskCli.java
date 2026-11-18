@@ -78,8 +78,8 @@ public final class DataMaskCli {
         Path source = regular(options.get("--input"));
         Path policy = regular(options.get("--policy"));
         Path output = Path.of(options.get("--output")).toAbsolutePath().normalize();
-        Path parent = output.getParent();
-        require(parent != null && Files.isDirectory(parent, LinkOption.NOFOLLOW_LINKS));
+        Path parent = java.util.Objects.requireNonNull(output.getParent(), "Output parent required");
+        require(Files.isDirectory(parent, LinkOption.NOFOLLOW_LINKS));
         require(Files.getPosixFilePermissions(parent, LinkOption.NOFOLLOW_LINKS)
                 .equals(PosixFilePermissions.fromString("rwx------")));
         // A hard link publishes an already closed staging file, atomically and without replacing.

@@ -142,6 +142,13 @@ class DataMaskCliTest {
         assertEquals(0, run("--help"));
     }
 
+    @Test
+    void shouldRejectFilesystemRootAsOutput() {
+        output = directory.toAbsolutePath().getRoot();
+        assertEquals(1, run(args("csv")));
+        assertFalse(stderr.toString(StandardCharsets.UTF_8).contains(directory.toString()));
+    }
+
     private void assertNoStagingFiles() throws Exception {
         try (var files = Files.list(directory)) {
             assertTrue(files.noneMatch(file -> file.getFileName().toString().startsWith(".datamask4j-")));
