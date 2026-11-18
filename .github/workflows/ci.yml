@@ -28,7 +28,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/datamask4j-m2"
           echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Build and test
-        run: mvn -B -ntp clean verify
+        run: python3 scripts/run_maven_ci.py -B -ntp clean verify
       - name: Smoke test standalone CLI
         shell: bash
         run: |
@@ -51,12 +51,20 @@ jobs:
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-verify.json
           python3 scripts/audit_dependencies.py target/build-inventory-verify.json --output target/build-osv-verify.json --report-only
+      - name: Collect filtered Maven provenance
+        if: always()
+        run: |
+          mkdir -p target
+          if test -s "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl"; then
+            cp "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl" target/maven-provenance-verify.jsonl
+          fi
       - name: Upload test and coverage reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: test-and-coverage
           path: |
+            target/maven-provenance-verify.jsonl
             target/build-inventory-verify.json
             target/build-osv-verify.json
             **/target/surefire-reports/*.xml
@@ -82,9 +90,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/datamask4j-m2"
           echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Compile and install core and crypto
-        run: mvn -B -ntp -pl datamask4j-core,datamask4j-crypto -am -DskipTests clean install
+        run: python3 scripts/run_maven_ci.py -B -ntp -pl datamask4j-core,datamask4j-crypto -am -DskipTests clean install
       - name: PIT core and crypto mutation baseline
-        run: mvn -B -ntp -pl datamask4j-core,datamask4j-crypto test-compile org.pitest:pitest-maven:1.30.2:mutationCoverage
+        run: python3 scripts/run_maven_ci.py -B -ntp -pl datamask4j-core,datamask4j-crypto test-compile org.pitest:pitest-maven:1.30.2:mutationCoverage
       - name: Enforce mutation floors
         run: python3 scripts/quality_gate.py mutation
       - name: Inventory resolved Maven build JARs and report known advisories
@@ -92,12 +100,20 @@ jobs:
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-mutation.json
           python3 scripts/audit_dependencies.py target/build-inventory-mutation.json --output target/build-osv-mutation.json --report-only
+      - name: Collect filtered Maven provenance
+        if: always()
+        run: |
+          mkdir -p target
+          if test -s "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl"; then
+            cp "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl" target/maven-provenance-mutation.jsonl
+          fi
       - name: Upload mutation-reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: mutation-reports
           path: |
+            target/maven-provenance-mutation.jsonl
             target/build-inventory-mutation.json
             target/build-osv-mutation.json
             **/target/pit-reports/**
@@ -121,9 +137,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/datamask4j-m2"
           echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Compile and install modules
-        run: mvn -B -ntp -DskipTests clean install
+        run: python3 scripts/run_maven_ci.py -B -ntp -DskipTests clean install
       - name: SpotBugs analysis
-        run: mvn -B -ntp -pl datamask4j-core,datamask4j-crypto,datamask4j-file,datamask4j-jdbc,datamask4j-faker,datamask4j-annotations,datamask4j-spring-boot-starter,datamask4j-spring-batch,datamask4j-cli com.github.spotbugs:spotbugs-maven-plugin:4.10.5.0:spotbugs -Dspotbugs.xmlOutput=true
+        run: python3 scripts/run_maven_ci.py -B -ntp -pl datamask4j-core,datamask4j-crypto,datamask4j-file,datamask4j-jdbc,datamask4j-faker,datamask4j-annotations,datamask4j-spring-boot-starter,datamask4j-spring-batch,datamask4j-cli com.github.spotbugs:spotbugs-maven-plugin:4.10.5.0:spotbugs -Dspotbugs.xmlOutput=true
       - name: Enforce zero SpotBugs findings
         run: python3 scripts/quality_gate.py spotbugs
       - name: Inventory resolved Maven build JARs and report known advisories
@@ -131,12 +147,20 @@ jobs:
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-static-analysis.json
           python3 scripts/audit_dependencies.py target/build-inventory-static-analysis.json --output target/build-osv-static-analysis.json --report-only
+      - name: Collect filtered Maven provenance
+        if: always()
+        run: |
+          mkdir -p target
+          if test -s "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl"; then
+            cp "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl" target/maven-provenance-static-analysis.jsonl
+          fi
       - name: Upload spotbugs-reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: spotbugs-reports
           path: |
+            target/maven-provenance-static-analysis.jsonl
             target/build-inventory-static-analysis.json
             target/build-osv-static-analysis.json
             **/target/spotbugsXml.xml
@@ -160,9 +184,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/datamask4j-m2"
           echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Resolve all modules including PostgreSQL test profile
-        run: mvn -B -ntp -Ppostgres-integration -DskipTests clean install
+        run: python3 scripts/run_maven_ci.py -B -ntp -Ppostgres-integration -DskipTests clean install
       - name: Generate CycloneDX SBOM
-        run: mvn -B -ntp -Ppostgres-integration org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeAggregateBom -DincludeTestScope=true -DoutputReactorProjects=false -Dcyclonedx.skipNotDeployed=false -Dcyclonedx.skipAttach=true -DoutputFormat=json
+        run: python3 scripts/run_maven_ci.py -B -ntp -Ppostgres-integration org.cyclonedx:cyclonedx-maven-plugin:2.9.3:makeAggregateBom -DincludeTestScope=true -DoutputReactorProjects=false -Dcyclonedx.skipNotDeployed=false -Dcyclonedx.skipAttach=true -DoutputFormat=json
       - name: OSV dependency gate
         run: python3 scripts/audit_dependencies.py target/bom.json --output target/osv-report.json
       - name: Inventory resolved Maven build JARs and report known advisories
@@ -170,12 +194,20 @@ jobs:
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-dependency-audit.json
           python3 scripts/audit_dependencies.py target/build-inventory-dependency-audit.json --output target/build-osv-dependency-audit.json --report-only
+      - name: Collect filtered Maven provenance
+        if: always()
+        run: |
+          mkdir -p target
+          if test -s "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl"; then
+            cp "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl" target/maven-provenance-dependency-audit.jsonl
+          fi
       - name: Upload dependency-audit
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: dependency-audit
           path: |
+            target/maven-provenance-dependency-audit.jsonl
             target/build-inventory-dependency-audit.json
             target/build-osv-dependency-audit.json
             target/bom.json
@@ -215,7 +247,7 @@ jobs:
         id: prepare-postgres
         run: bash scripts/prepare_postgres_image.sh
       - name: Run PostgreSQL integration tests against prepared image
-        run: mvn -B -ntp -pl datamask4j-jdbc -am -Ppostgres-integration clean verify
+        run: python3 scripts/run_maven_ci.py -B -ntp -pl datamask4j-jdbc -am -Ppostgres-integration clean verify
       - name: Enforce PostgreSQL integration line coverage
         run: python3 scripts/quality_gate.py integration
       - name: Scan exact tested PostgreSQL image
@@ -226,12 +258,20 @@ jobs:
         run: |
           python3 scripts/audit_build_repository.py "$RUNNER_TEMP/datamask4j-m2" --output target/build-inventory-image-audit.json
           python3 scripts/audit_dependencies.py target/build-inventory-image-audit.json --output target/build-osv-image-audit.json --report-only
+      - name: Collect filtered Maven provenance
+        if: always()
+        run: |
+          mkdir -p target
+          if test -s "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl"; then
+            cp "$RUNNER_TEMP/datamask4j-maven-provenance.jsonl" target/maven-provenance-image-audit.jsonl
+          fi
       - name: Upload postgres-image-audit
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: postgres-image-audit
           path: |
+            target/maven-provenance-image-audit.jsonl
             target/build-inventory-image-audit.json
             target/build-osv-image-audit.json
             target/image-audit/*.json

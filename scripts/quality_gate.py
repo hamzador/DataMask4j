@@ -4,11 +4,11 @@ from pathlib import Path
 import xml.etree.ElementTree as ET
 
 MODULES = {
-    "annotations": 98, "cli": 94, "core": 91, "crypto": 94,
+    "annotations": 98, "cli": 94, "core": 100, "crypto": 94,
     "faker": 100, "file": 98, "jdbc": 35, "spring-batch": 100,
     "spring-boot-starter": 100,
 }
-MUTATION = {"core": 82, "crypto": 68}
+MUTATION = {"core": 100, "crypto": 68}
 
 
 def check_coverage(integration=False):
@@ -53,9 +53,9 @@ def check_spotbugs():
         print(f"{module}: {len(bugs)} findings, {len(errors)} analysis errors, {len(missing)} missing classes")
         for bug in bugs:
             print(f"  {bug.get('type')} {bug.get('priority')}")
-        if bugs or errors:
+        if bugs or errors or missing:
             failed.append(module)
-        # Missing classes are reported for investigation; they are not findings.
+        # Incomplete classpaths prevent a trustworthy zero-finding result.
     return failed
 
 
