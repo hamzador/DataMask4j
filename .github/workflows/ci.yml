@@ -12,8 +12,6 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    env:
-      MAVEN_ARGS: -Dmaven.repo.local=${{ runner.temp }}/datamask4j-m2
     timeout-minutes: 15
     steps:
       - name: Checkout
@@ -25,6 +23,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Isolate Maven repository
+        run: |
+          mkdir -p "$RUNNER_TEMP/datamask4j-m2"
+          echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Build and test
         run: mvn -B -ntp clean verify
       - name: Smoke test standalone CLI
@@ -64,8 +66,6 @@ jobs:
 
   mutation:
     runs-on: ubuntu-latest
-    env:
-      MAVEN_ARGS: -Dmaven.repo.local=${{ runner.temp }}/datamask4j-m2
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -77,6 +77,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Isolate Maven repository
+        run: |
+          mkdir -p "$RUNNER_TEMP/datamask4j-m2"
+          echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Compile and install core and crypto
         run: mvn -B -ntp -pl datamask4j-core,datamask4j-crypto -am -DskipTests clean install
       - name: PIT core and crypto mutation baseline
@@ -101,8 +105,6 @@ jobs:
 
   static-analysis:
     runs-on: ubuntu-latest
-    env:
-      MAVEN_ARGS: -Dmaven.repo.local=${{ runner.temp }}/datamask4j-m2
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -114,6 +116,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Isolate Maven repository
+        run: |
+          mkdir -p "$RUNNER_TEMP/datamask4j-m2"
+          echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Compile and install modules
         run: mvn -B -ntp -DskipTests clean install
       - name: SpotBugs analysis
@@ -138,8 +144,6 @@ jobs:
 
   dependency-audit:
     runs-on: ubuntu-latest
-    env:
-      MAVEN_ARGS: -Dmaven.repo.local=${{ runner.temp }}/datamask4j-m2
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -151,6 +155,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Isolate Maven repository
+        run: |
+          mkdir -p "$RUNNER_TEMP/datamask4j-m2"
+          echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Resolve all modules including PostgreSQL test profile
         run: mvn -B -ntp -Ppostgres-integration -DskipTests clean install
       - name: Generate CycloneDX SBOM
@@ -188,8 +196,6 @@ jobs:
 
   image-audit:
     runs-on: ubuntu-latest
-    env:
-      MAVEN_ARGS: -Dmaven.repo.local=${{ runner.temp }}/datamask4j-m2
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -201,6 +207,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      - name: Isolate Maven repository
+        run: |
+          mkdir -p "$RUNNER_TEMP/datamask4j-m2"
+          echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Prepare patched local PostgreSQL image
         id: prepare-postgres
         run: bash scripts/prepare_postgres_image.sh
