@@ -26,7 +26,7 @@
 
 ## M5b — Grouped quality and documentation
 - Prepared five static documentation pages, sitemap, canonical tags and offline validation; Pages activation/indexing not verified.
-- One CI workflow now groups seven parallel jobs: full verification with JaCoCo baseline, PIT, SpotBugs, SBOM/OSV, Gitleaks, Trivy PostgreSQL image and documentation checks. New CI pending. Review reported findings, add justified coverage and mutation thresholds and complete build-plugin/helper-image scans before release.
+- One CI workflow now groups seven parallel jobs: full verification with JaCoCo baseline, PIT, SpotBugs, SBOM/OSV, Gitleaks, Trivy PostgreSQL image and documentation checks. Initial grouped CI: 110 tests passed, OSV 73 coordinates with zero advisory matches, Gitleaks passed, PIT core 23/28 and crypto 11/16 mutants killed; documentation and PostgreSQL image scan failed. Corrected head-only HTML title counting and added a checksum-pinned Go 1.27.4 build of gosu from its locked upstream 1.20 commit, installed in a local CI-only derivative of the locked image. Integration tests and Trivy scan now share the same runner and assert the image identity. Correction CI pending. Review reported findings, add justified coverage and mutation thresholds and complete build-plugin/helper-image scans before release.
 
 ## M6 — First public release
 - Confirm ownership of requested Maven namespace io.github.hador.

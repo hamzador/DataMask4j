@@ -65,7 +65,7 @@ The real PostgreSQL integration suite checks SELECT-only and write-capable roles
 
 ## CI assurance boundary
 - Parallel quality baseline collects per-module JaCoCo, core/crypto PIT and all-module SpotBugs reports. These reports need review; no threshold or zero-finding claim is made yet.
-- OSV gates known Maven component advisories on the aggregate SBOM (including test profile); Gitleaks checks reachable history using a checksum-pinned tool; Trivy gates HIGH/CRITICAL findings on the pinned PostgreSQL image. Database freshness and scanner completeness are external, and helper images, Maven plugin classpaths and shaded artifact provenance need further review. No automated deployment or release.
+- OSV gates known Maven component advisories on the aggregate SBOM (including test profile); Gitleaks checks reachable history using a checksum-pinned tool; Trivy gates HIGH/CRITICAL findings on the exact local PostgreSQL CI fixture used by integration tests. The initial base image scan found 26 HIGH/CRITICAL findings in gosu's Go standard library. A local-only derivative rebuilds gosu from a locked source commit using checksum-pinned Go 1.27.4, preserving the base OS and original image user; verification of the fix is pending. The scanner still gates the entire final image; no CVE exclusions. Database freshness and scanner completeness are external, and helper images, Maven plugin classpaths and shaded artifact provenance need further review. No automated deployment or release.
 
 ## Before release
 Review dependency and build supply chain, threat model and secure defaults; add negative cases and independent consumer tests; verify release provenance, key lifecycle documentation and legal/license obligations. No production safety certification.

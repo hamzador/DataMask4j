@@ -24,7 +24,7 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Build and test
-        run: mvn -B -ntp -Ppostgres-integration clean verify
+        run: mvn -B -ntp clean verify
       - name: Smoke test standalone CLI
         shell: bash
         run: |
@@ -37,7 +37,8 @@ jobs:
           java -jar datamask4j-cli/target/datamask4j-cli-0.1.0-SNAPSHOT-standalone.jar mask --format csv --input "$work/input.csv" --output "$work/masked.csv" --policy "$work/policy.yml"
           printf 'email\r\n[REDACTED]\r\n' > "$work/expected.csv"
           cmp "$work/expected.csv" "$work/masked.csv"
-      - name: Coverage baseline
+      - name: Coverage baseline (unit and Spring/H2 tests)
+        shell: bash
         run: python3 scripts/coverage_summary.py | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Upload test and coverage reports
         if: always()
@@ -151,7 +152,18 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           persist-credentials: false
-      - name: Scan pinned PostgreSQL image
+      - name: Set up Java 21
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare patched local PostgreSQL image
+        id: prepare-postgres
+        run: bash scripts/prepare_postgres_image.sh
+      - name: Run PostgreSQL integration tests against prepared image
+        run: mvn -B -ntp -pl datamask4j-jdbc -am -Ppostgres-integration clean verify
+      - name: Scan exact tested PostgreSQL image
+        if: ${{ !cancelled() && steps.prepare-postgres.outcome == 'success' }}
         run: bash scripts/audit_postgres_image.sh
       - name: Upload postgres-image-audit
         if: always()
@@ -160,6 +172,8 @@ jobs:
           name: postgres-image-audit
           path: |
             target/image-audit/*.json
+            datamask4j-jdbc/target/failsafe-reports/*.xml
+            datamask4j-jdbc/target/site/jacoco/**
           if-no-files-found: warn
 
   documentation:

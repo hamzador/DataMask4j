@@ -201,7 +201,7 @@ flowchart LR
     A --> D[SpotBugs baseline]
     A --> E[SBOM and OSV gate]
     A --> F[Gitleaks Git history]
-    A --> G[Trivy PostgreSQL image gate]
+    A --> G[PostgreSQL integration and Trivy]
     A --> H[Documentation checks]
     B --> Z[Review all results]
     C --> Z
@@ -212,7 +212,7 @@ flowchart LR
     H --> Z
 ```
 
-Independent jobs run on separate runners. JaCoCo, PIT and SpotBugs establish baselines and produce reports; no new numerical coverage/mutation threshold or zero-SpotBugs-finding gate is asserted until reviewed. OSV, Gitleaks and HIGH/CRITICAL PostgreSQL image findings fail their jobs. The SBOM includes project dependencies and PostgreSQL profile test dependencies, not a complete build-plugin inventory. Trivy scans the pinned PostgreSQL fixture image, not every Testcontainers helper image. All seven jobs must be reviewed; neither a green scanner nor a green build proves production safety.
+Independent jobs run on separate runners. JaCoCo, PIT and SpotBugs establish baselines and produce reports; no new numerical coverage/mutation threshold or zero-SpotBugs-finding gate is asserted until reviewed. OSV, Gitleaks and HIGH/CRITICAL PostgreSQL image findings fail their jobs. The SBOM includes project dependencies and PostgreSQL profile test dependencies, not a complete build-plugin inventory. The PostgreSQL integration and Trivy checks share a dedicated runner. A CI-only derivative of the pinned upstream image replaces gosu with a build from locked upstream source using checksum-pinned Go 1.27.4. Tests assert the actual container image ID; Trivy scans the same local image with unchanged HIGH/CRITICAL blocking. Initial scan found 26 findings in gosu; remediation is pending CI verification. Local integration runs without CI preparation still use the original pinned base; its known findings mean it should only be used for isolated synthetic testing until repaired. Testcontainers helper images remain outside this scan. The unit build repeats some tests in the JDBC job; count distinct tests, not the sum of job totals. All seven jobs must be reviewed; neither a green scanner nor a green build proves production safety.
 
 ## Requirements and build
 

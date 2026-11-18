@@ -23,8 +23,19 @@ import static org.junit.jupiter.api.Assertions.*;
 class PostgreSqlMaskerIT {
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(
-            DockerImageName.parse("postgres@sha256:f377d590e5474681d4d7838635031a2b50647923b7abfa803ce9b5ff35d5c663"))
+            postgresImage())
             .withDatabaseName("masking_demo");
+
+    private static DockerImageName postgresImage() {
+        String image = System.getenv("DATAMASK4J_POSTGRES_IMAGE");
+        if (image == null) {
+            return DockerImageName.parse("postgres@sha256:f377d590e5474681d4d7838635031a2b50647923b7abfa803ce9b5ff35d5c663");
+        }
+        if (!"datamask4j-postgres-ci:patched".equals(image)) {
+            throw new IllegalStateException("Unexpected CI PostgreSQL image");
+        }
+        return DockerImageName.parse(image).asCompatibleSubstituteFor("postgres");
+    }
 
     private static final String TEST_PASSWORD = "fixture-only-password";
     private static final JdbcTable CUSTOMER = new JdbcTable("masking_demo", "public", "customer");
@@ -32,6 +43,12 @@ class PostgreSqlMaskerIT {
 
     @BeforeAll
     static void createFixtures() throws SQLException {
+        String expectedImageId = System.getenv("DATAMASK4J_POSTGRES_EXPECTED_ID");
+        if (System.getenv("DATAMASK4J_POSTGRES_IMAGE") != null) {
+            assertNotNull(expectedImageId, "CI image identity required");
+            assertEquals(expectedImageId, POSTGRES.getContainerInfo().getImageId(),
+                    "Integration tests must use the prepared image");
+        }
         try (var connection = admin().getConnection(); var statement = connection.createStatement()) {
             statement.execute("CREATE ROLE mask_reader LOGIN PASSWORD '" + TEST_PASSWORD + "'");
             statement.execute("CREATE ROLE mask_writer LOGIN PASSWORD '" + TEST_PASSWORD + "'");

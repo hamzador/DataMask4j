@@ -15,22 +15,29 @@ class Page(HTMLParser):
         self.description = 0
         self.canonical = []
         self.links = []
+        self.in_head = False
 
     def handle_starttag(self, tag, attributes):
         attrs = dict(attributes)
         assert tag != "script", "Documentation must not execute scripts"
         if tag == "h1":
             self.headings += 1
-        if tag == "title":
+        if tag == "head":
+            self.in_head = True
+        if tag == "title" and self.in_head:
             self.title += 1
-        if tag == "meta" and attrs.get("name") == "description" and attrs.get("content"):
+        if self.in_head and tag == "meta" and attrs.get("name") == "description" and attrs.get("content"):
             self.description += 1
-        if tag == "link" and attrs.get("rel") == "canonical":
+        if self.in_head and tag == "link" and attrs.get("rel") == "canonical":
             self.canonical.append(attrs.get("href"))
         if tag in ("a", "link"):
             href = attrs.get("href")
             if href and not urlsplit(href).scheme:
                 self.links.append(urlsplit(href).path)
+
+    def handle_endtag(self, tag):
+        if tag == "head":
+            self.in_head = False
 
 pages = sorted(ROOT.glob("*.html"))
 assert pages, "Missing pages"
@@ -40,7 +47,7 @@ for file in pages:
     parsed.feed(file.read_text(encoding="utf-8"))
     canonical = BASE + ("" if file.name == "index.html" else file.name)
     expected.add(canonical)
-    assert parsed.title == parsed.description == parsed.headings == 1, file
+    assert parsed.title == parsed.description == parsed.headings == 1, (file, parsed.title, parsed.description, parsed.headings)
     assert parsed.canonical == [canonical], file
     for href in parsed.links:
         if href:
