@@ -40,3 +40,11 @@ image_id="$(docker image inspect --format '{{.Id}}' "$tag")"
 test -n "$image_id"
 echo "DATAMASK4J_POSTGRES_IMAGE=$tag" >> "${GITHUB_ENV:?GITHUB_ENV required}"
 echo "DATAMASK4J_POSTGRES_EXPECTED_ID=$image_id" >> "$GITHUB_ENV"
+
+# Pin the Testcontainers reaper used on the same runner; do not disable Ryuk.
+ryuk='testcontainers/ryuk@sha256:7c1a8a9a47c780ed0f983770a662f80deb115d95cce3e2daa3d12115b8cd28f0'
+docker pull "$ryuk"
+ryuk_id="$(docker image inspect --format '{{.Id}}' "$ryuk")"
+test -n "$ryuk_id"
+echo "TESTCONTAINERS_RYUK_CONTAINER_IMAGE=$ryuk" >> "$GITHUB_ENV"
+echo "DATAMASK4J_RYUK_EXPECTED_ID=$ryuk_id" >> "$GITHUB_ENV"

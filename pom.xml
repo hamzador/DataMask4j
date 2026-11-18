@@ -10,6 +10,7 @@
     <url>https://github.com/hamzador/DataMask4j</url>
     <licenses><license><name>Apache License, Version 2.0</name><url>https://www.apache.org/licenses/LICENSE-2.0</url><distribution>repo</distribution></license></licenses>
     <scm><connection>scm:git:https://github.com/hamzador/DataMask4j.git</connection><developerConnection>scm:git:ssh://git@github.com/hamzador/DataMask4j.git</developerConnection><url>https://github.com/hamzador/DataMask4j</url><tag>HEAD</tag></scm>
+    <developers><developer><id>hamzador</id><url>https://github.com/hamzador</url></developer></developers>
     <modules><module>datamask4j-core</module><module>datamask4j-crypto</module><module>datamask4j-file</module><module>datamask4j-jdbc</module><module>datamask4j-faker</module><module>datamask4j-annotations</module><module>datamask4j-spring-boot-starter</module><module>datamask4j-spring-batch</module><module>datamask4j-cli</module></modules>
     <properties>
         <maven.compiler.release>21</maven.compiler.release>
@@ -25,11 +26,16 @@
         <plugin.snappy>0.5</plugin.snappy>
         <plugin.plexus-archiver>4.16.0</plugin.plexus-archiver>
         <plugin.maven-filtering>3.5.1</plugin.maven-filtering>
+        <plugin.commons-compress>1.28.0</plugin.commons-compress>
+        <plugin.commons-beanutils>1.11.0</plugin.commons-beanutils>
+        <plugin.aircompressor>2.0.3</plugin.aircompressor>
+        <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
     <dependencies>
         <dependency><groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><version>${junit.version}</version><scope>test</scope></dependency>
     </dependencies>
     <build>
+        <resources><resource><directory>${project.basedir}/src/main/resources</directory></resource><resource><directory>${project.basedir}/..</directory><targetPath>META-INF</targetPath><filtering>false</filtering><includes><include>LICENSE</include></includes></resource></resources>
         <pluginManagement><plugins>
             <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-clean-plugin</artifactId><version>3.5.0</version><dependencies>
                         <dependency>
@@ -268,6 +274,78 @@
                     </dependencies></plugin>
 <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-shade-plugin</artifactId><version>3.6.1</version><dependencies><dependency><groupId>org.codehaus.plexus</groupId><artifactId>plexus-utils</artifactId><version>${plugin.plexus-utils.v3}</version></dependency><dependency><groupId>commons-io</groupId><artifactId>commons-io</artifactId><version>${plugin.commons-io}</version></dependency><dependency><groupId>org.apache.commons</groupId><artifactId>commons-lang3</artifactId><version>${plugin.commons-lang3}</version></dependency></dependencies></plugin>
 <plugin><groupId>org.codehaus.mojo</groupId><artifactId>build-helper-maven-plugin</artifactId><version>3.6.1</version><dependencies><dependency><groupId>org.codehaus.plexus</groupId><artifactId>plexus-utils</artifactId><version>${plugin.plexus-utils.v4}</version></dependency><dependency><groupId>commons-io</groupId><artifactId>commons-io</artifactId><version>${plugin.commons-io}</version></dependency><dependency><groupId>org.apache.commons</groupId><artifactId>commons-lang3</artifactId><version>${plugin.commons-lang3}</version></dependency></dependencies></plugin>
+<plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId><version>3.3.1</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>commons-io</groupId>
+                            <artifactId>commons-io</artifactId>
+                            <version>${plugin.commons-io}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.apache.commons</groupId>
+                            <artifactId>commons-compress</artifactId>
+                            <version>${plugin.commons-compress}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.codehaus.plexus</groupId>
+                            <artifactId>plexus-utils</artifactId>
+                            <version>${plugin.plexus-utils.v3}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.iq80.snappy</groupId>
+                            <artifactId>snappy</artifactId>
+                            <version>${plugin.snappy}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.codehaus.plexus</groupId>
+                            <artifactId>plexus-archiver</artifactId>
+                            <version>${plugin.plexus-archiver}</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
+<plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId><version>3.12.0</version>
+                    <dependencies>
+                        <dependency>
+                            <groupId>org.codehaus.plexus</groupId>
+                            <artifactId>plexus-utils</artifactId>
+                            <version>${plugin.plexus-utils.v4}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>commons-beanutils</groupId>
+                            <artifactId>commons-beanutils</artifactId>
+                            <version>${plugin.commons-beanutils}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>io.airlift</groupId>
+                            <artifactId>aircompressor</artifactId>
+                            <version>${plugin.aircompressor}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.codehaus.plexus</groupId>
+                            <artifactId>plexus-archiver</artifactId>
+                            <version>${plugin.plexus-archiver}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>commons-io</groupId>
+                            <artifactId>commons-io</artifactId>
+                            <version>${plugin.commons-io}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.apache.commons</groupId>
+                            <artifactId>commons-lang3</artifactId>
+                            <version>${plugin.commons-lang3}</version>
+                        </dependency>
+                        <dependency>
+                            <groupId>org.iq80.snappy</groupId>
+                            <artifactId>snappy</artifactId>
+                            <version>${plugin.snappy}</version>
+                        </dependency>
+                    </dependencies>
+                </plugin>
 </plugins></pluginManagement>
         <plugins>
             <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-enforcer-plugin</artifactId><version>3.6.2</version>
@@ -281,4 +359,18 @@
             </executions></plugin>
         </plugins>
     </build>
+    <profiles>
+      <profile>
+        <id>release-preparation</id>
+        <build><plugins>
+          <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-source-plugin</artifactId>
+            <executions><execution><id>attach-source</id><phase>package</phase><goals><goal>jar-no-fork</goal></goals></execution></executions>
+          </plugin>
+          <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-javadoc-plugin</artifactId>
+            <configuration><doclint>all,-missing</doclint></configuration>
+            <executions><execution><id>attach-javadoc</id><phase>package</phase><goals><goal>jar</goal></goals></execution></executions>
+          </plugin>
+        </plugins></build>
+      </profile>
+    </profiles>
 </project>

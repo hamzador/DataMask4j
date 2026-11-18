@@ -28,7 +28,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/datamask4j-m2"
           echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
       - name: Build and test
-        run: python3 scripts/run_maven_ci.py -B -ntp clean install
+        run: python3 scripts/run_maven_ci.py -B -ntp -Prelease-preparation clean install
       - name: Verify standalone consumer projects against installed artifacts
         run: |
           python3 scripts/run_maven_ci.py -B -ntp -f consumer-examples/core/pom.xml clean verify
@@ -45,6 +45,8 @@ jobs:
           java -jar datamask4j-cli/target/datamask4j-cli-0.1.0-SNAPSHOT-standalone.jar mask --format csv --input "$work/input.csv" --output "$work/masked.csv" --policy "$work/policy.yml"
           printf 'email\r\n[REDACTED]\r\n' > "$work/expected.csv"
           cmp "$work/expected.csv" "$work/masked.csv"
+      - name: Rehearse signing tested snapshot locally (no upload)
+        run: bash scripts/rehearse_release.sh
       - name: Coverage baseline (unit and Spring/H2 tests)
         shell: bash
         run: |
@@ -68,6 +70,9 @@ jobs:
         with:
           name: test-and-coverage
           path: |
+            target/datamask4j-SNAPSHOT-DO-NOT-UPLOAD.zip
+            target/rehearsal-manifest.json
+            target/rehearsal-public-key.asc
             target/maven-provenance-verify.jsonl
             target/build-inventory-verify.json
             target/build-osv-verify.json
@@ -247,14 +252,14 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/datamask4j-m2"
           echo "MAVEN_ARGS=-Dmaven.repo.local=$RUNNER_TEMP/datamask4j-m2" >> "$GITHUB_ENV"
-      - name: Prepare patched local PostgreSQL image
+      - name: Prepare patched local PostgreSQL and pinned Ryuk images
         id: prepare-postgres
         run: bash scripts/prepare_postgres_image.sh
       - name: Run PostgreSQL integration tests against prepared image
         run: python3 scripts/run_maven_ci.py -B -ntp -pl datamask4j-jdbc -am -Ppostgres-integration clean verify
       - name: Enforce PostgreSQL integration line coverage
         run: python3 scripts/quality_gate.py integration
-      - name: Scan exact tested PostgreSQL image
+      - name: Scan exact tested PostgreSQL and Ryuk images
         if: ${{ !cancelled() && steps.prepare-postgres.outcome == 'success' }}
         run: bash scripts/audit_postgres_image.sh
       - name: Inventory resolved Maven build JARs and enforce OSV gate

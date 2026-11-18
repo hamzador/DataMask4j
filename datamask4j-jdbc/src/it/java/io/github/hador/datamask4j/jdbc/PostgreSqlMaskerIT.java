@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
+import org.testcontainers.DockerClientFactory;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -48,6 +49,12 @@ class PostgreSqlMaskerIT {
             assertNotNull(expectedImageId, "CI image identity required");
             assertEquals(expectedImageId, POSTGRES.getContainerInfo().getImageId(),
                     "Integration tests must use the prepared image");
+            String ryukId = System.getenv("DATAMASK4J_RYUK_EXPECTED_ID");
+            assertNotNull(ryukId, "CI Ryuk image identity required");
+            assertTrue(DockerClientFactory.instance().client().listContainersCmd().withShowAll(true).exec()
+                    .stream().anyMatch(container -> ryukId.equals(container.getImageId())
+                            && "running".equals(container.getState())),
+                    "The pinned Ryuk reaper must be running during the tests");
         }
         try (var connection = admin().getConnection(); var statement = connection.createStatement()) {
             statement.execute("CREATE ROLE mask_reader LOGIN PASSWORD '" + TEST_PASSWORD + "'");

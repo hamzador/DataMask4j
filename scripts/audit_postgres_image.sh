@@ -25,4 +25,19 @@ for result in report.get("Results", []):
               vuln.get("PkgName"), vuln.get("InstalledVersion"), vuln.get("FixedVersion")))
 PY
 fi
+ryuk="${TESTCONTAINERS_RYUK_CONTAINER_IMAGE:?Missing pinned Ryuk image}"
+test "$(docker image inspect --format '{{.Id}}' "$ryuk")" = "${DATAMASK4J_RYUK_EXPECTED_ID:?Missing expected Ryuk image identity}"
+docker image inspect "$ryuk" > target/image-audit/ryuk-identity.json
+"$work/trivy" image --image-src docker --scanners vuln --severity HIGH,CRITICAL \
+  --timeout 10m --exit-code 1 --format json --output target/image-audit/ryuk.json "$ryuk" || status=$?
+if test -s target/image-audit/ryuk.json; then
+  python3 - <<'PY'
+import json
+from pathlib import Path
+for result in json.loads(Path("target/image-audit/ryuk.json").read_text()).get("Results", []):
+    for vuln in result.get("Vulnerabilities") or []:
+        print("Ryuk {} {} {} {} fixed: {}".format(vuln.get("Severity"), vuln.get("VulnerabilityID"),
+              vuln.get("PkgName"), vuln.get("InstalledVersion"), vuln.get("FixedVersion")))
+PY
+fi
 exit "$status"
