@@ -20,7 +20,7 @@ def inventory(root):
     parent = ET.parse(root / "pom.xml").getroot()
     version = parent.findtext("m:version", namespaces=NS)
     group = parent.findtext("m:groupId", namespaces=NS)
-    require(group == "io.github.hador" and version == "0.1.0-SNAPSHOT",
+    require(group == "io.github.hamzador" and version == "0.1.0-SNAPSHOT",
             "Rehearsal accepts only the authorised snapshot")
     modules = [node.text for node in parent.findall("m:modules/m:module", NS)]
     require(len(modules) == 9 and len(set(modules)) == 9, "Expected nine modules")
@@ -55,6 +55,9 @@ def inventory(root):
         require(jar.testzip() is None, "Corrupt standalone CLI")
         require(b"Main-Class: io.github.hador.datamask4j.cli.DataMaskCli" in
                 jar.read("META-INF/MANIFEST.MF"), "Missing CLI main class")
+        notices = jar.read("META-INF/NOTICE.txt")
+        for component in (b"Apache Commons CSV", b"Apache Commons Codec", b"Apache Commons IO"):
+            require(component in notices, f"Missing standalone CLI notice for {component.decode()}")
         embedded = sorted(n for n in jar.namelist() if n.startswith("META-INF/maven/") and n.endswith("/pom.properties"))
     files[f"datamask4j-cli/{standalone.name}"] = standalone
     return files, embedded

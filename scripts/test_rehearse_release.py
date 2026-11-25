@@ -9,7 +9,7 @@ class ReleaseRehearsalTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "pom.xml").write_text(
-                '<project xmlns="http://maven.apache.org/POM/4.0.0"><groupId>io.github.hador</groupId>'
+                '<project xmlns="http://maven.apache.org/POM/4.0.0"><groupId>io.github.hamzador</groupId>'
                 '<version>0.1.0</version></project>')
             with self.assertRaisesRegex(ValueError, "authorised snapshot"):
                 inventory(root)
@@ -18,7 +18,7 @@ class ReleaseRehearsalTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / "pom.xml").write_text(
-                '<project xmlns="http://maven.apache.org/POM/4.0.0"><groupId>io.github.hador</groupId>'
+                '<project xmlns="http://maven.apache.org/POM/4.0.0"><groupId>io.github.hamzador</groupId>'
                 '<version>0.1.0-SNAPSHOT</version></project>')
             with self.assertRaisesRegex(ValueError, "nine modules"):
                 inventory(root)
