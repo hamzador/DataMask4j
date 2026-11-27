@@ -43,7 +43,7 @@ The optional `datamask4j-jdbc` module validates and masks rows in memory without
 
 ```xml
 <dependency>
-    <groupId>io.github.hador</groupId>
+    <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-jdbc</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
@@ -231,18 +231,18 @@ mvn -B -ntp clean verify
 mvn -B -ntp clean install
 ```
 
-The second command installs development artifacts into your local Maven repository only. No remote publishing is configured. The planned Maven group ID is `io.github.hador`; namespace ownership must be verified in the Central Portal before publishing. The GitHub repository remains `hamzador/DataMask4j`.
+The second command installs development artifacts into your local Maven repository only. No remote publishing is configured. The Maven group ID is `io.github.hamzador`. Java imports use `io.github.hador.datamask4j`. The GitHub repository remains `hamzador/DataMask4j`.
 
 ### Maven coordinates (local development only)
 
 ```xml
 <dependency>
-    <groupId>io.github.hador</groupId>
+    <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-core</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
 <dependency>
-    <groupId>io.github.hador</groupId>
+    <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-crypto</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
@@ -374,7 +374,7 @@ The optional `datamask4j-file` module adds streaming CSV and JSON transformation
 
 ```xml
 <dependency>
-    <groupId>io.github.hador</groupId>
+    <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-file</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
@@ -548,7 +548,7 @@ The optional `datamask4j-faker` module provides deterministic, locale-aware fiel
 
 ```xml
 <dependency>
-    <groupId>io.github.hador</groupId>
+    <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-faker</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
@@ -606,7 +606,7 @@ The optional `datamask4j-annotations` module provides explicit, immutable-copy m
 
 ```xml
 <dependency>
-    <groupId>io.github.hador</groupId>
+    <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-annotations</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
@@ -670,7 +670,7 @@ Use the optional starter to inject an explicitly enabled `RecordMasker` into a S
 
 ```xml
 <dependency>
-    <groupId>io.github.hador</groupId>
+    <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-spring-boot-starter</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
@@ -747,7 +747,7 @@ The optional `datamask4j-spring-batch` module targets Spring Batch 6.0.6 (Java 2
 
 ```xml
 <dependency>
-    <groupId>io.github.hador</groupId>
+    <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-spring-batch</artifactId>
     <version>0.1.0-SNAPSHOT</version>
 </dependency>
@@ -941,7 +941,7 @@ Partially. The snapshot has a standalone Java engine, CSV/JSON adapters with YAM
 
 ### Is DataMask4j available on Maven Central?
 
-Not yet. Build the snapshot locally. The requested group ID is `io.github.hador`; a public release requires verified namespace ownership and release approval.
+Not yet. Build the snapshot locally. The Maven group ID is `io.github.hamzador`. A public release requires release approval.
 
 ## Project status
 

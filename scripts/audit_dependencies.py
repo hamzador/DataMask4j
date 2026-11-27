@@ -7,7 +7,7 @@ from urllib.error import HTTPError
 import time
 
 URL = "https://api.osv.dev/v1/querybatch"
-OWN_GROUP = "io.github.hador"
+OWN_GROUP = "io.github.hamzador"
 
 
 def components(bom):

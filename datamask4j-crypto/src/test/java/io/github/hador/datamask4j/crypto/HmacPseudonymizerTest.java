@@ -31,6 +31,19 @@ class HmacPseudonymizerTest {
     }
 
     @Test
+    void shouldFrameUtf8ByteLengthsAndEmbeddedNul() {
+        var unicodeScope = new HmacPseudonymizer(key, "é/🔑");
+        assertEquals("dm1_u-Bs-RqyJXD-mdg4Ee3d5BuvOfDiGAsB33u_2_pS258",
+                unicodeScope.transform("a\0😀"));
+    }
+
+    @Test
+    void shouldMatchKnownAnswerForEmptyValue() {
+        assertEquals("dm1_VqUmM58q5qgO_TWhs8rbgcr81uUFjtvIy2R-9nD0aKI",
+                pseudonymizer.transform(""));
+    }
+
+    @Test
     void shouldBeDeterministicAndIsolateScopesAndKeys() {
         String first = pseudonymizer.transform("C-42");
         assertEquals(first, new HmacPseudonymizer(key, "customer-id:v1").transform("C-42"));

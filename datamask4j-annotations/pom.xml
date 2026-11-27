@@ -1,12 +1,12 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <parent><groupId>io.github.hador</groupId><artifactId>datamask4j-parent</artifactId><version>0.1.0-SNAPSHOT</version></parent>
+    <parent><groupId>io.github.hamzador</groupId><artifactId>datamask4j-parent</artifactId><version>0.1.0-SNAPSHOT</version></parent>
     <artifactId>datamask4j-annotations</artifactId>
     <name>datamask4j-annotations</name>
     <description>Explicit annotation-driven masking of flat Java records.</description>
     <dependencies>
-        <dependency><groupId>io.github.hador</groupId><artifactId>datamask4j-core</artifactId><version>${project.version}</version></dependency>
-        <dependency><groupId>io.github.hador</groupId><artifactId>datamask4j-crypto</artifactId><version>${project.version}</version></dependency>
-        <dependency><groupId>io.github.hador</groupId><artifactId>datamask4j-faker</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>io.github.hamzador</groupId><artifactId>datamask4j-core</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>io.github.hamzador</groupId><artifactId>datamask4j-crypto</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>io.github.hamzador</groupId><artifactId>datamask4j-faker</artifactId><version>${project.version}</version></dependency>
     </dependencies>
 </project>

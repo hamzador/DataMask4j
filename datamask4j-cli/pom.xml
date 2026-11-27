@@ -1,11 +1,11 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <parent><groupId>io.github.hador</groupId><artifactId>datamask4j-parent</artifactId><version>0.1.0-SNAPSHOT</version></parent>
+    <parent><groupId>io.github.hamzador</groupId><artifactId>datamask4j-parent</artifactId><version>0.1.0-SNAPSHOT</version></parent>
     <artifactId>datamask4j-cli</artifactId>
     <name>datamask4j-cli</name>
     <description>Offline UTF-8 file masking CLI with no-overwrite publication.</description>
     <dependencies>
-        <dependency><groupId>io.github.hador</groupId><artifactId>datamask4j-file</artifactId><version>${project.version}</version></dependency>
+        <dependency><groupId>io.github.hamzador</groupId><artifactId>datamask4j-file</artifactId><version>${project.version}</version></dependency>
     </dependencies>
     <build><plugins>
         <plugin>
@@ -17,6 +17,9 @@
                     <transformers>
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer"><mainClass>io.github.hador.datamask4j.cli.DataMaskCli</mainClass></transformer>
                         <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                        <transformer implementation="org.apache.maven.plugins.shade.resource.AppendingTransformer">
+                            <resource>META-INF/NOTICE.txt</resource>
+                        </transformer>
                     </transformers>
                     <filters><filter><artifact>*:*</artifact><excludes><exclude>META-INF/*.SF</exclude><exclude>META-INF/*.DSA</exclude><exclude>META-INF/*.RSA</exclude></excludes></filter></filters>
                 </configuration>
