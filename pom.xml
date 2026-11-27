@@ -3,13 +3,13 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>io.github.hamzador</groupId>
     <artifactId>datamask4j-parent</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <packaging>pom</packaging>
     <name>DataMask4j</name>
     <description>Java data masking, privacy-first test data and scoped pseudonymisation.</description>
     <url>https://github.com/hamzador/DataMask4j</url>
     <licenses><license><name>Apache License, Version 2.0</name><url>https://www.apache.org/licenses/LICENSE-2.0</url><distribution>repo</distribution></license></licenses>
-    <scm><connection>scm:git:https://github.com/hamzador/DataMask4j.git</connection><developerConnection>scm:git:ssh://git@github.com/hamzador/DataMask4j.git</developerConnection><url>https://github.com/hamzador/DataMask4j</url><tag>HEAD</tag></scm>
+    <scm><connection>scm:git:https://github.com/hamzador/DataMask4j.git</connection><developerConnection>scm:git:ssh://git@github.com/hamzador/DataMask4j.git</developerConnection><url>https://github.com/hamzador/DataMask4j</url><tag>v0.1.0</tag></scm>
     <developers><developer><id>hamzador</id><url>https://github.com/hamzador</url></developer></developers>
     <modules><module>datamask4j-core</module><module>datamask4j-crypto</module><module>datamask4j-file</module><module>datamask4j-jdbc</module><module>datamask4j-faker</module><module>datamask4j-annotations</module><module>datamask4j-spring-boot-starter</module><module>datamask4j-spring-batch</module><module>datamask4j-cli</module></modules>
     <properties>
