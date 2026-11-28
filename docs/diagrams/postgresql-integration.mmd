@@ -1,0 +1,10 @@
+flowchart TD
+    A[Unit tests] --> B[PostgreSQL Testcontainers]
+    B --> C[Create synthetic fixtures and roles]
+    C --> D[SELECT-only role succeeds]
+    C --> E[Write-capable roles rejected]
+    C --> F[Invalid schema and bounds rejected]
+    D --> G[Verify source remains unchanged]
+    E --> G
+    F --> G
+    G --> H[CI gate]

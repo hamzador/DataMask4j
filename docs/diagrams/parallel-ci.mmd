@@ -1,0 +1,15 @@
+flowchart LR
+    A[One push] --> B[Build, integration and CLI smoke]
+    A --> C[PIT mutation baseline]
+    A --> D[SpotBugs baseline]
+    A --> E[SBOM and OSV gate]
+    A --> F[Gitleaks Git history]
+    A --> G[PostgreSQL integration and Trivy]
+    A --> H[Documentation checks]
+    B --> Z[Review all results]
+    C --> Z
+    D --> Z
+    E --> Z
+    F --> Z
+    G --> Z
+    H --> Z

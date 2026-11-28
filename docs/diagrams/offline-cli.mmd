@@ -1,0 +1,8 @@
+flowchart TD
+    A[Input and YAML policy] --> B[Validate paths and private output directory]
+    B --> C[Load policy and external key if needed]
+    C --> D[Stream masked records to private staging file]
+    D --> E{Complete success and close?}
+    E -->|Yes| F[Publish with no-overwrite hard link]
+    E -->|No| G[Delete staging file]
+    F --> H[Remove staging name and print count]

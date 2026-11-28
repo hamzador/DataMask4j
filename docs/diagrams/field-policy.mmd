@@ -1,0 +1,12 @@
+flowchart TD
+    A[Input record] --> B{Exact policy field set?}
+    B -->|No| X[Reject with generic error]
+    B -->|Yes| C{Rule for each field}
+    C -->|DROP| D[Omit field]
+    C -->|KEEP| E[Retain intentionally]
+    C -->|REDACT or CONSTANT| F[Replace value]
+    C -->|HMAC| G[Scoped pseudonym]
+    D --> H[Immutable masked record]
+    E --> H
+    F --> H
+    G --> H

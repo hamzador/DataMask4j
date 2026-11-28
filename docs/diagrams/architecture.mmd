@@ -1,0 +1,10 @@
+flowchart LR
+    A[Java string maps] --> C[Core masking engine]
+    B[CSV and flat JSON] --> F[File adapters]
+    F --> C
+    Y[Strict YAML policy] --> C
+    K[External secret key] --> H[Crypto HMAC strategy]
+    H --> C
+    C --> O[Masked records]
+    J[PostgreSQL read-only preview] --> C
+    C --> R[Counts-only JDBC report]

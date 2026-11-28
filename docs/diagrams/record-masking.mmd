@@ -1,0 +1,9 @@
+flowchart TD
+    A[Public flat record] --> B[Inspect every component annotation]
+    B --> C{All types and options valid?}
+    C -->|No| X[Generic failure before accessors]
+    C -->|Yes| D[Read components]
+    D --> E[Apply declared masking strategies]
+    E --> F[Call public canonical constructor]
+    F --> G[New record of same type]
+    F -->|Failure| X
