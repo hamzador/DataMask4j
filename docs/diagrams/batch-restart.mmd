@@ -1,0 +1,8 @@
+flowchart TD
+    A[Chunk 1: two masked items] --> B[Commit two rows]
+    B --> C[Chunk 2: insert third masked row]
+    C --> D[Inject test failure]
+    D --> E[Rollback second chunk]
+    E --> F[Restart with saved position]
+    F --> G[Reprocess items three and four]
+    G --> H[Commit and verify four unique masked rows]

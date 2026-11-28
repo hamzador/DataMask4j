@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant App as Application
+    participant File as CSV or JSON adapter
+    participant Core as Masking engine
+    participant Stage as Staging output
+    App->>File: Input and explicit policy
+    loop Each bounded record
+        File->>Core: Validate and mask
+        Core-->>File: Masked record
+        File->>Stage: Write masked record
+    end
+    alt All records succeed
+        File-->>App: Processed count
+    else Any failure
+        File-->>App: Sanitised error
+        Note over App,Stage: Caller discards entire partial output
+    end

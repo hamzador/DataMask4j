@@ -1,0 +1,16 @@
+flowchart TD
+    A[Spring Boot starts] --> B{datamask4j.enabled?}
+    B -->|False or absent| X[No auto-configured masker]
+    B -->|True| C{Application masker exists?}
+    C -->|Yes| D[Use application bean]
+    C -->|No| E{Key provider available?}
+    E -->|Yes| F[Load fresh key and validate length]
+    E -->|No| G{Key required?}
+    G -->|Yes| H[Fail startup]
+    G -->|No| I[Create unkeyed masker]
+    F --> J{Valid key?}
+    J -->|No| H
+    J -->|Yes| K[Create keyed masker and clear temporary key]
+    I --> L[Explicit service call]
+    K --> L
+    D --> L

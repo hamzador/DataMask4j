@@ -1,0 +1,12 @@
+flowchart LR
+    subgraph Source[Source database]
+        S[PostgreSQL table]
+    end
+    subgraph Worker[Isolated masking worker]
+        P[SELECT-only transaction]
+        M[Strict field policy]
+        R[Counts-only dry-run report]
+        P --> M --> R
+    end
+    S -->|Read only| P
+    M -. Restricted transactional export .-> T[Separate non-production database]

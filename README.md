@@ -70,86 +70,25 @@ The source datasource is supplied by your application; the PostgreSQL driver is 
 
 ## Architecture: small core, optional adapters
 
-```mermaid
-flowchart LR
-    A[Java string maps] --> C[Core masking engine]
-    B[CSV and flat JSON] --> F[File adapters]
-    F --> C
-    Y[Strict YAML policy] --> C
-    K[External secret key] --> H[Crypto HMAC strategy]
-    H --> C
-    C --> O[Masked records]
-    J[PostgreSQL read-only preview] --> C
-    C --> R[Counts-only JDBC report]
-```
+![DataMask4j architecture from adapters and policies to masked records and JDBC reports](docs/diagrams/architecture.png)
 
 ### Field policy: fail closed
 
-```mermaid
-flowchart TD
-    A[Input record] --> B{Exact policy field set?}
-    B -->|No| X[Reject with generic error]
-    B -->|Yes| C{Rule for each field}
-    C -->|DROP| D[Omit field]
-    C -->|KEEP| E[Retain intentionally]
-    C -->|REDACT or CONSTANT| F[Replace value]
-    C -->|HMAC| G[Scoped pseudonym]
-    D --> H[Immutable masked record]
-    E --> H
-    F --> H
-    G --> H
-```
+![Field policy validation, rule dispatch and masked record creation](docs/diagrams/field-policy.png)
 
 ### Deterministic identity across datasets
 
-```mermaid
-flowchart LR
-    A[Customer ID C-42] --> H[HMAC with shared key and scope]
-    B[Order customer ID C-42] --> H
-    H --> C[Same versioned pseudonym]
-    D[Different scope] --> E[Different pseudonym]
-```
+![Shared scopes preserve pseudonyms across datasets and different scopes produce different pseudonyms](docs/diagrams/scoped-identity.png)
 
 Equality preservation is useful for joins but is not a guarantee of anonymity or referential integrity. Keep keys separate from masked datasets.
 
 ### Streaming file masking
 
-```mermaid
-sequenceDiagram
-    participant App as Application
-    participant File as CSV or JSON adapter
-    participant Core as Masking engine
-    participant Stage as Staging output
-    App->>File: Input and explicit policy
-    loop Each bounded record
-        File->>Core: Validate and mask
-        Core-->>File: Masked record
-        File->>Stage: Write masked record
-    end
-    alt All records succeed
-        File-->>App: Processed count
-    else Any failure
-        File-->>App: Sanitised error
-        Note over App,Stage: Caller discards entire partial output
-    end
-```
+![CSV and JSON records are masked into staging output with errors returned to the caller](docs/diagrams/streaming-masking.png)
 
 ### Database trust boundary (preview and experimental export)
 
-```mermaid
-flowchart LR
-    subgraph Source[Source database]
-        S[PostgreSQL table]
-    end
-    subgraph Worker[Isolated masking worker]
-        P[SELECT-only transaction]
-        M[Strict field policy]
-        R[Counts-only dry-run report]
-        P --> M --> R
-    end
-    S -->|Read only| P
-    M -. Restricted transactional export .-> T[Separate non-production database]
-```
+![Read-only database preview and restricted export across the database trust boundary](docs/diagrams/database-trust-boundary.png)
 
 JdbcMasker performs a read-only dry run. JdbcExporter separately supports INSERT-only transactions into an empty test table. Restricted ordered multi-table export is experimental; automatic planning remains a later milestone.
 
@@ -194,23 +133,7 @@ Detailed roadmap below. Only use features that exist in the current source tree.
 
 A static, English documentation website is prepared under [docs/](docs/), with five topic-focused pages, unique titles and descriptions, canonical URLs, a sitemap and no third-party scripts. To publish it, the maintainer must enable GitHub Pages from the repository's main branch, /docs folder. Intended address: `https://hamzador.github.io/DataMask4j/` (publication not verified). Do not assume indexing or ranking.
 
-```mermaid
-flowchart LR
-    A[One push] --> B[Build, integration and CLI smoke]
-    A --> C[PIT mutation baseline]
-    A --> D[SpotBugs baseline]
-    A --> E[SBOM and OSV gate]
-    A --> F[Gitleaks Git history]
-    A --> G[PostgreSQL integration and Trivy]
-    A --> H[Documentation checks]
-    B --> Z[Review all results]
-    C --> Z
-    D --> Z
-    E --> Z
-    F --> Z
-    G --> Z
-    H --> Z
-```
+![Seven GitHub Actions checks run in parallel](docs/diagrams/parallel-ci.png)
 
 Independent jobs run on separate runners. The prior CI passed all seven jobs (110 distinct Java tests, 73 Maven coordinates with no OSV matches, zero HIGH/CRITICAL findings in the patched PostgreSQL image). New gates enforce measured per-module line-coverage floors (100% core, 94% crypto, 35% JDBC unit and 100% PostgreSQL integration, 94–100% other modules), mutation floors of 100% core and 68% crypto, and zero SpotBugs findings. The exact unrounded measured ratios are used. These are non-regression floors, not proof of correctness. Some crypto cleanup mutants remain unobservable through the public API; no exclusions are added. The initial gates passed in run 44205547918: 114 distinct Java tests, Core 100% lines and 100% mutation score, no SpotBugs findings. All blocking gates passed in run 44206560027, including the Enforcer override and all five build inventories. See [build dependency remediation](docs/build-security.md). Each Maven-running job inventories isolated resolved build JAR coordinates. Run 44206114290 reduced the eight advisory matches to one, traced to Maven Enforcer's plexus-utils 4.0.2. The 4.0.3 override removed the last advisory match; CI confirmed zero matches in all five inventories. Two independent [consumer projects](consumer-examples/README.md) verify the installed core and Spring Boot starter artifacts. OSV, Gitleaks and HIGH/CRITICAL PostgreSQL image findings fail their jobs. The SBOM includes project dependencies and PostgreSQL profile test dependencies, not a complete build-plugin inventory. The PostgreSQL integration and Trivy checks share a dedicated runner. A CI-only derivative of the pinned upstream image replaces gosu with a build from locked upstream source using checksum-pinned Go 1.27.4. Tests assert the actual container image ID; Trivy scans the same local image with unchanged HIGH/CRITICAL blocking. Initial scan found 26 findings in gosu; the patched image scanned clean (zero HIGH/CRITICAL findings) and passed all 23 PostgreSQL integration tests in run 44204487332. Local integration runs without CI preparation still use the original pinned base; its known findings mean it should only be used for isolated synthetic testing until repaired. CI now also pins the Ryuk reaper and verifies the running image identity; a dedicated Ryuk scan is pending validation. Other helper images are not claimed to be audited. The unit build repeats some tests in the JDBC job; count distinct tests, not the sum of job totals. All seven jobs and the build inventory findings must be reviewed; neither a green scanner nor a green build proves production safety.
 
@@ -464,28 +387,7 @@ GRANT SELECT, INSERT ON public.customer_masked TO dm_mask_writer;
 
 The writer role must already exist, must not own the table, and must not have UPDATE, DELETE, TRUNCATE, TRIGGER or REFERENCES on it. The source role remains SELECT-only. The destination must have exactly the retained text/varchar columns, with no generated fields, defaults, triggers, rules, inheritance, RLS, expression/partial indexes or unsupported constraints. PK, UNIQUE and NOT NULL constraints are enforced by PostgreSQL. Single-table export rejects foreign keys outside its plan. The ordered multi-table API supports a restricted subset of foreign keys. Automatic relational planning is not supported.
 
-```mermaid
-sequenceDiagram
-    participant S as Source PostgreSQL
-    participant E as JDBC exporter
-    participant T as Isolated test PostgreSQL
-    E->>T: Verify target identity, role and serializable transaction
-    E->>S: Start read-only transaction
-    E->>S: Verify source grants and schema
-    E->>T: Verify empty target and exact columns
-    loop Each bounded row
-        S-->>E: Source row
-        Note over E: Apply explicit masking policy
-        E->>T: Parameterized INSERT of masked values
-    end
-    alt All rows succeed
-        E->>S: Rollback read-only transaction and close
-        E->>T: Commit target
-    else Any error before commit
-        E->>S: Rollback and close
-        E->>T: Rollback target
-    end
-```
+![PostgreSQL export sequence showing source and target transactions, commit and rollback](docs/diagrams/postgresql-export.png)
 
 The target transaction uses SERIALIZABLE isolation, and no automatic retry is performed. A connection failure around commit can leave the outcome unknown: inspect the target before retrying. This initial API assumes trusted database administration, stable schemas and no concurrent privileged DDL or external writes; it does not sandbox custom strategies, database extensions or administrative functions. Use isolated disposable targets, a reviewed policy, least privilege, and do not send output to a test system that is allowed to access production or its keys. No raw values are included in library-generated errors or reports.
 
@@ -520,25 +422,7 @@ var reports = JdbcExporter.exportAll(sourceDataSource, testDataSource,
     plan, JdbcMaskingLimits.defaults());
 ```
 
-```mermaid
-flowchart LR
-    subgraph Source[Read-only repeatable-read snapshot]
-        C[Customer C-42] --> O[Order references C-42]
-    end
-    subgraph Core[Shared key and scope]
-        H[HMAC identity]
-    end
-    C --> H
-    O --> H
-    subgraph Target[One serializable target transaction]
-        P[Masked customer PK] --> F[Matching order FK]
-        F --> V{All constraints satisfied?}
-        V -->|Yes| A[Commit all tables]
-        V -->|No| B[Rollback all tables]
-    end
-    H --> P
-    H --> F
-```
+![Shared pseudonyms preserve relationships during an atomic multi-table export](docs/diagrams/relational-export.png)
 
 The caller supplies parent-before-child order and matching policies. Target foreign keys must be validated, immediate NO ACTION/RESTRICT constraints wholly inside the plan. External references, cycles, self-references, deferred or cascading constraints and non-FK triggers are rejected. PostgreSQL enforces target PK/UNIQUE/FK/NOT NULL constraints. The exporter does not infer source relationships, prove semantic equivalence of keys or automatically choose policies. A wrong scope can cause a target FK violation and rollback; constraints alone cannot detect a wrong-but-consistent mapping. Use identical canonicalisation, keys and scopes. No database-wide discovery, subset selection or cyclic schema support.
 
@@ -587,16 +471,7 @@ assert full.equals(first + " " + last);
 
 Name components agree only when the same seed, key, scope, locale and module version are used. Masking separate fields with different original inputs cannot guarantee cross-field agreement; applications must deliberately supply a common identity seed where needed. Email tokens are separated from name selection by purpose and locale. Reserve the `faker:v1:` scope prefix for this module. Key/scope/locale changes can change generated values. Name vocabularies may change in future explicitly versioned algorithms.
 
-```mermaid
-flowchart LR
-    S[Opaque field value or identity seed] --> H[Scoped HMAC]
-    K[External key] --> H
-    L[Explicit locale] --> H
-    H --> N[Curated name selection]
-    H --> E[Lowercase hex test email]
-    N --> O[Masked record]
-    E --> O
-```
+![Scoped HMAC, external key and locale drive consistent synthetic fixtures](docs/diagrams/synthetic-fixtures.png)
 
 These are pseudonymising substitutions, not independently generated anonymous datasets. Equality/frequency and auxiliary attributes can still leak information. No valid phone numbers, deliverable addresses, national identifiers or bank details are generated in this milestone, avoiding accidental use of real contact or financial details. YAML integration of these strategies is not yet supported; use the Java API. Richer vocabularies, realistic locale formats and separately reviewed fixture providers are future work.
 
@@ -648,17 +523,7 @@ Customer masked = masker.mask(original);
 | FAKE_FIRST_NAME / FAKE_LAST_NAME / FAKE_NAME | Select a locale-aware synthetic name from the keyed input |
 | FAKE_EMAIL | Generate a deterministic email in example.test |
 
-```mermaid
-flowchart TD
-    A[Public flat record] --> B[Inspect every component annotation]
-    B --> C{All types and options valid?}
-    C -->|No| X[Generic failure before accessors]
-    C -->|Yes| D[Read components]
-    D --> E[Apply declared masking strategies]
-    E --> F[Call public canonical constructor]
-    F --> G[New record of same type]
-    F -->|Failure| X
-```
+![Java record annotation validation, masking and canonical constructor](docs/diagrams/record-masking.png)
 
 A record has a fixed shape, so DROP is deliberately unavailable: use NULLIFY for a nullable String or construct a separate data-transfer type if a field must be absent. Null input components remain null, even under CONSTANT. Non-String types are only supported for explicitly retained immutable scalar values; nested records, collections, arrays, POJOs, private records and automatic traversal are not supported. Up to 128 components are allowed. No accessibility override, runtime code generation or external framework is used.
 
@@ -720,24 +585,7 @@ public class CustomerMaskingService {
 
 Here Customer is the annotated public record from the preceding example. No HTTP filter, serialization hook, AOP interception, scheduled job, data source or automatic export is registered. Masking is always an explicit application call. A custom application-defined RecordMasker takes precedence and is responsible for its own key and policy decisions.
 
-```mermaid
-flowchart TD
-    A[Spring Boot starts] --> B{datamask4j.enabled?}
-    B -->|False or absent| X[No auto-configured masker]
-    B -->|True| C{Application masker exists?}
-    C -->|Yes| D[Use application bean]
-    C -->|No| E{Key provider available?}
-    E -->|Yes| F[Load fresh key and validate length]
-    E -->|No| G{Key required?}
-    G -->|Yes| H[Fail startup]
-    G -->|No| I[Create unkeyed masker]
-    F --> J{Valid key?}
-    J -->|No| H
-    J -->|Yes| K[Create keyed masker and clear temporary key]
-    I --> L[Explicit service call]
-    K --> L
-    D --> L
-```
+![Spring Boot starter decisions for application beans and key providers](docs/diagrams/spring-boot.png)
 
 For unkeyed REDACT, KEEP, CONSTANT and NULLIFY operations only, use `enabled: true` and `key-required: false`, with no provider bean. If a provider exists, its key is still validated and used. Missing required, invalid or ambiguous providers fail bean creation; provider invocation errors are sanitized without retaining their cause. Provider bean initialization outside this method is trusted application code. Spring can log its own configuration errors; do not put keys in configuration properties, exception text or logs. No key rotation, secret-manager client, automatic lifecycle erasure, actuator endpoint or database integration is supplied.
 
@@ -784,16 +632,7 @@ Step maskCustomers(JobRepository repository,
 
 For string maps, instantiate `new MapMaskingItemProcessor(new DataMasker(policy))` and configure a Map<String,String> reader and writer. Both processors throw a generic BatchMaskingException on transformation failure; they never return the original input as fallback or use null to filter an item. Dropping all map fields emits an empty map, not a skipped item.
 
-```mermaid
-flowchart LR
-    R[Trusted reader] --> P[Explicit masking processor]
-    P --> V{Complete policy valid?}
-    V -->|Yes| M[New masked item]
-    M --> W[Isolated transactional writer]
-    V -->|No| F[Generic masking failure]
-    W --> C[Batch-managed chunk commit]
-    F --> B[Batch failure or rollback per configuration]
-```
+![Spring Batch reader, explicit masking processor and transactional writer](docs/diagrams/spring-batch.png)
 
 Only the application owns transaction boundaries. No skip, retry or restart policy is registered by the module. A failed chunk must not be allowed to bypass masking; do not configure a fallback writer for original items. For deterministic reprocessing use the same reviewed policy, key and scope across retries and restarts; never reprocess already masked items as raw source. Custom strategies, record constructors and accessors must be pure and thread-safe when used concurrently. Readers, listeners, execution contexts, job parameters, writers and tracing are outside the masking boundary and must not retain or log raw data. A transactional writer and appropriate job repository are required for actual rollback and restart guarantees. Processor and JDBC job rollback/restart tests passed CI.
 
@@ -801,16 +640,7 @@ Only the application owns transaction boundaries. No skip, retry or restart poli
 
 The integration tests use a Spring Batch JDBC JobRepository, an isolated embedded H2 database and a transactional JDBC writer. Four synthetic customer records are processed in chunks of two. One scenario deliberately fails after a row is inserted in the second chunk. It checks that the failed chunk leaves no rows, the first chunk remains committed, and restart resumes at the saved reader position with the same HMAC key and policy. A separate successful-job scenario compares every output row to its expected masked value.
 
-```mermaid
-flowchart TD
-    A[Chunk 1: two masked items] --> B[Commit two rows]
-    B --> C[Chunk 2: insert third masked row]
-    C --> D[Inject test failure]
-    D --> E[Rollback second chunk]
-    E --> F[Restart with saved position]
-    F --> G[Reprocess items three and four]
-    G --> H[Commit and verify four unique masked rows]
-```
+![Spring Batch integration test showing chunk rollback and restart](docs/diagrams/batch-restart.png)
 
 Run with `mvn -B -ntp -pl datamask4j-spring-batch -am clean verify`. The tests use synthetic fixtures only, no external database or credentials. This is evidence for the specific synchronous JDBC job, reader and transaction manager configuration after CI validation; it does not guarantee restart safety for arbitrary readers, partitioning, distributed jobs, nontransactional destinations or key changes. Earlier committed chunks are not rolled back when a later chunk fails. Publish the complete dataset only after a successful job and review.
 
@@ -828,16 +658,7 @@ java -jar datamask4j-cli/target/datamask4j-cli-0.1.0-SNAPSHOT-standalone.jar \
 
 For HMAC policies, add `--key-file /path/to/private-key` pointing to an existing owner-only file of exactly 32 raw cryptographically random bytes. Never pass the key value on the command line or store it in the policy. All file paths and their parent directories must be trusted, stable local paths. The output directory must already exist with POSIX mode 0700 and support hard links; output files have mode 0600. Platforms without these features fail closed. The CLI rejects final-component symlinks for inputs, policy, key and output directory, and rejects existing output (including dangling symlinks and hard links). It never overwrites input or existing destination.
 
-```mermaid
-flowchart TD
-    A[Input and YAML policy] --> B[Validate paths and private output directory]
-    B --> C[Load policy and external key if needed]
-    C --> D[Stream masked records to private staging file]
-    D --> E{Complete success and close?}
-    E -->|Yes| F[Publish with no-overwrite hard link]
-    E -->|No| G[Delete staging file]
-    F --> H[Remove staging name and print count]
-```
+![Offline CLI validation, staging, and no-overwrite publication](docs/diagrams/offline-cli.png)
 
 Exit codes: 0 success/help, 1 processing failure, 2 invalid arguments. Output contains counts only, and errors omit filenames, values and causes. If staging cleanup fails, a generic warning is printed; inspect the private directory. A crash can leave a staging file. This is atomic name publication, not fsync/power-loss durability or protection against a malicious concurrent directory owner. Do not use shared or untrusted paths, and review all KEEP rules before exporting. No database CLI, YAML faker adapters, recursive discovery or overwrite mode in this milestone.
 
@@ -896,18 +717,7 @@ mvn -B -ntp -Ppostgres-integration clean verify
 
 The default `mvn clean verify` runs unit tests without Docker; CI explicitly enables the integration profile and fails if no integration tests run. The suite checks actual PostgreSQL privilege enforcement, read-only transaction behaviour, correct database identity, unsupported tables/types, input bounds and unchanged source data.
 
-```mermaid
-flowchart TD
-    A[Unit tests] --> B[PostgreSQL Testcontainers]
-    B --> C[Create synthetic fixtures and roles]
-    C --> D[SELECT-only role succeeds]
-    C --> E[Write-capable roles rejected]
-    C --> F[Invalid schema and bounds rejected]
-    D --> G[Verify source remains unchanged]
-    E --> G
-    F --> G
-    G --> H[CI gate]
-```
+![PostgreSQL integration tests for permissions, schema and source immutability](docs/diagrams/postgresql-integration.png)
 
 A passing integration suite is evidence for the tested cases only, not proof of production safety. The image is pinned by digest; full image and dependency vulnerability audits are still required before release.
 

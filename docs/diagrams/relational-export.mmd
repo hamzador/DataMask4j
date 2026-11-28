@@ -1,0 +1,17 @@
+flowchart LR
+    subgraph Source[Read-only repeatable-read snapshot]
+        C[Customer C-42] --> O[Order references C-42]
+    end
+    subgraph Core[Shared key and scope]
+        H[HMAC identity]
+    end
+    C --> H
+    O --> H
+    subgraph Target[One serializable target transaction]
+        P[Masked customer PK] --> F[Matching order FK]
+        F --> V{All constraints satisfied?}
+        V -->|Yes| A[Commit all tables]
+        V -->|No| B[Rollback all tables]
+    end
+    H --> P
+    H --> F

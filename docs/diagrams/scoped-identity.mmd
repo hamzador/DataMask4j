@@ -1,0 +1,5 @@
+flowchart LR
+    A[Customer ID C-42] --> H[HMAC with shared key and scope]
+    B[Order customer ID C-42] --> H
+    H --> C[Same versioned pseudonym]
+    D[Different scope] --> E[Different pseudonym]

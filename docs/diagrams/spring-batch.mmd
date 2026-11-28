@@ -1,0 +1,8 @@
+flowchart LR
+    R[Trusted reader] --> P[Explicit masking processor]
+    P --> V{Complete policy valid?}
+    V -->|Yes| M[New masked item]
+    M --> W[Isolated transactional writer]
+    V -->|No| F[Generic masking failure]
+    W --> C[Batch-managed chunk commit]
+    F --> B[Batch failure or rollback per configuration]

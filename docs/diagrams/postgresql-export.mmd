@@ -1,0 +1,20 @@
+sequenceDiagram
+    participant S as Source PostgreSQL
+    participant E as JDBC exporter
+    participant T as Isolated test PostgreSQL
+    E->>T: Verify target identity, role and serializable transaction
+    E->>S: Start read-only transaction
+    E->>S: Verify source grants and schema
+    E->>T: Verify empty target and exact columns
+    loop Each bounded row
+        S-->>E: Source row
+        Note over E: Apply explicit masking policy
+        E->>T: Parameterized INSERT of masked values
+    end
+    alt All rows succeed
+        E->>S: Rollback read-only transaction and close
+        E->>T: Commit target
+    else Any error before commit
+        E->>S: Rollback and close
+        E->>T: Rollback target
+    end

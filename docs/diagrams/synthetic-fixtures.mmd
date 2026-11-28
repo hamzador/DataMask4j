@@ -1,0 +1,8 @@
+flowchart LR
+    S[Opaque field value or identity seed] --> H[Scoped HMAC]
+    K[External key] --> H
+    L[Explicit locale] --> H
+    H --> N[Curated name selection]
+    H --> E[Lowercase hex test email]
+    N --> O[Masked record]
+    E --> O
